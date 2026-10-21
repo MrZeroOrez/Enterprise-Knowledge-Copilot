@@ -1,0 +1,53 @@
+# Python Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Environment and Secrets (CRITICAL: never commit real API keys)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Local Data and Document Uploads
+data/uploads/*
+!data/uploads/.gitkeep
+
+# ChromaDB persistent local storage
+data/chromadb/
+chroma_db/
+*.chroma
+
+# SQLite Databases (Planned for conversation memory)
+*.db
+*.sqlite3
+
+# IDE and Editor artifacts
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Operating System files
+Thumbs.db
+Desktop.ini
+.DS_Store

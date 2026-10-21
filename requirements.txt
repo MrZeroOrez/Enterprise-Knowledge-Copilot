@@ -1,0 +1,20 @@
+# Enterprise Knowledge Copilot - Phase 1 Dependencies
+# Only dependencies needed for initial foundation, document extraction,
+# deterministic chunking, configuration validation, and unit testing.
+
+# PDF extraction
+pypdf>=5.0.0
+
+# Environment and configuration management
+python-dotenv>=1.0.0
+
+# Unit testing framework
+pytest>=8.0.0
+
+# ------------------------------------------------------------------------------
+# Future Phase Dependencies (To be added incrementally in later phases):
+# Phase 3: google-genai, chromadb
+# Phase 6: streamlit
+# Phase 8: fastapi, uvicorn
+# Phase 10: langgraph
+# ------------------------------------------------------------------------------

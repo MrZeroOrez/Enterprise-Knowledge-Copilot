@@ -23,6 +23,7 @@ DEFAULT_CHROMA_COLLECTION_NAME = "enterprise_documents"
 DEFAULT_MAX_UPLOAD_SIZE_MB = 10
 DEFAULT_RETRIEVAL_TOP_K = 5
 DEFAULT_RETRIEVAL_MAX_TOP_K = 50
+DEFAULT_RAG_MAX_CONTEXT_CHARS = 20000
 
 PLACEHOLDER_API_KEY = "your_gemini_api_key_here"
 
@@ -43,6 +44,7 @@ class AppConfig:
     retrieval_top_k: int = DEFAULT_RETRIEVAL_TOP_K
     retrieval_max_top_k: int = DEFAULT_RETRIEVAL_MAX_TOP_K
     retrieval_distance_threshold: float | None = None
+    rag_max_context_chars: int = DEFAULT_RAG_MAX_CONTEXT_CHARS
 
     @property
     def max_upload_size_bytes(self) -> int:
@@ -67,6 +69,18 @@ class AppConfig:
             raise ValueError(
                 "GEMINI_API_KEY is still set to the default placeholder value. "
                 "Please replace it with your actual Gemini API key in your .env file."
+            )
+
+    def validate_chat_model(self) -> None:
+        """Validate chat model configuration.
+
+        Raises:
+            ValueError: If the chat model name is empty.
+        """
+        if not self.chat_model or not self.chat_model.strip():
+            raise ValueError(
+                "GEMINI_CHAT_MODEL cannot be empty. Please configure a supported model "
+                "such as 'gemini-2.5-flash' in your .env file."
             )
 
     def validate_embedding_model(self) -> None:
@@ -138,6 +152,17 @@ class AppConfig:
                     f"got: {self.retrieval_distance_threshold}"
                 )
 
+    def validate_rag_params(self) -> None:
+        """Validate RAG context parameters.
+
+        Raises:
+            ValueError: If rag_max_context_chars <= 0.
+        """
+        if self.rag_max_context_chars <= 0:
+            raise ValueError(
+                f"RAG_MAX_CONTEXT_CHARS must be a positive integer (> 0), got: {self.rag_max_context_chars}"
+            )
+
     def is_api_key_set(self) -> bool:
         """Check if an API key is set without exposing the key value."""
         return bool(
@@ -158,6 +183,7 @@ class AppConfig:
             f"chunk_overlap={self.chunk_overlap}, "
             f"max_upload_size_mb={self.max_upload_size_mb}, "
             f"retrieval_top_k={self.retrieval_top_k}, "
+            f"rag_max_context_chars={self.rag_max_context_chars}, "
             f"upload_dir='{self.upload_dir}', "
             f"chroma_persist_dir='{self.chroma_persist_dir}', "
             f"chroma_collection_name='{self.chroma_collection_name}')"
@@ -224,7 +250,7 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
             f"MAX_UPLOAD_SIZE_MB must be a valid integer, got: '{max_upload_size_raw}'"
         ) from exc
 
-    retrieval_top_k_raw = os.getenv("RETRIEVAL_TOP_K", str(DEFAULT_RETRIEVAL_TOP_K))
+    retrieval_top_k_raw = os.getenv("RETRIEVAL_TOP_K") or os.getenv("RAG_TOP_K") or str(DEFAULT_RETRIEVAL_TOP_K)
     try:
         retrieval_top_k = int(retrieval_top_k_raw)
     except (ValueError, TypeError) as exc:
@@ -244,6 +270,14 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
         except (ValueError, TypeError) as exc:
             raise ValueError(f"RETRIEVAL_DISTANCE_THRESHOLD must be a valid float, got: '{thresh_raw}'") from exc
 
+    rag_max_context_chars_raw = os.getenv("RAG_MAX_CONTEXT_CHARS", str(DEFAULT_RAG_MAX_CONTEXT_CHARS))
+    try:
+        rag_max_context_chars = int(rag_max_context_chars_raw)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            f"RAG_MAX_CONTEXT_CHARS must be a valid integer, got: '{rag_max_context_chars_raw}'"
+        ) from exc
+
     config = AppConfig(
         gemini_api_key=gemini_api_key,
         chat_model=chat_model,
@@ -257,12 +291,15 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
         retrieval_top_k=retrieval_top_k,
         retrieval_max_top_k=retrieval_max_top_k,
         retrieval_distance_threshold=retrieval_distance_threshold,
+        rag_max_context_chars=rag_max_context_chars,
     )
 
     # Validate non-API parameters on load to fail-fast on malformed settings
     config.validate_chunking_params()
     config.validate_upload_params()
+    config.validate_chat_model()
     config.validate_embedding_model()
     config.validate_retrieval_params()
+    config.validate_rag_params()
 
     return config

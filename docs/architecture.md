@@ -1,7 +1,7 @@
 # Enterprise Knowledge Copilot — Architecture & System Design
 
 > **Document Status**: Active / Phased Architecture Plan  
-> **Current Version**: Phase 4 Verified (Semantic Retrieval, Ranking, and Relevance Testing)  
+> **Current Version**: Phase 5 Verified (Grounded LLM Answer Generation with Verifiable Citations)  
 > **Last Updated**: October 2026  
 
 ---
@@ -31,7 +31,29 @@ flowchart LR
 
 ---
 
-## 2. High-Level Architecture
+## 3. Grounded RAG Query Pipeline (Phase 5 Flow)
+
+Phase 5 establishes the end-to-end question answering and citation verification workflow:
+
+```mermaid
+flowchart TD
+    UserQ["User Question"] --> ValidateQ["Validate Question (Non-empty string)"]
+    ValidateQ --> CheckDocs{"Indexed Documents Exist?"}
+    CheckDocs -->|No (0 chunks)| StatusNoDocs["Status: no_documents"]
+    CheckDocs -->|Yes| SearchChunks["Semantic Retrieval (src/retrieval.py)"]
+    SearchChunks --> CheckHits{"Usable Evidence?"}
+    CheckHits -->|No / Filtered out| StatusInsufficient["Status: insufficient_evidence"]
+    CheckHits -->|Yes| BuildContext["Context Construction (RAG_MAX_CONTEXT_CHARS Budget)"]
+    BuildContext --> AssignRefs["Assign Reference IDs ([S1], [S2], ...)"]
+    AssignRefs --> GeminiCall["Gemini 2.5 Flash Generation (Strict Grounding Prompt)"]
+    GeminiCall --> CitationsValidator["Deterministic Citation Validation (Python)"]
+    CitationsValidator --> MapCitations["Map Valid IDs -> [source, p. page] & Strip Invalid IDs"]
+    MapCitations --> FinalResult["Final Structured Answer + Citations Dictionary"]
+```
+
+---
+
+## 4. High-Level Architecture
 
 The system follows an incremental, modular architecture with clear separation of concerns:
 
@@ -102,8 +124,8 @@ To maintain transparency and engineering rigor, the table below highlights exact
 | **Initial Retrieval Interface** | **Implemented** | Phase 3 | Phase 3 |
 | **Semantic Retrieval & Relevance Checks** | **Implemented** | Phase 4 | Phase 4 |
 | **Retrieval Evaluation Metrics (Recall/MRR)** | **Implemented** | Phase 4 | Phase 4 |
-| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1, 2, 3, 4 | Phase 1, 2, 3, 4 |
-| **Grounded Gemini Q&A with Citations** | Planned | — | Phase 5 |
+| **Grounded Gemini Q&A with Citations** | **Implemented** | Phase 5 | Phase 5 |
+| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1–5 | Phase 1–5 |
 | **Streamlit Interactive UI** | Planned | — | Phase 6 |
 | **Short-term Conversation History** | Planned | — | Phase 7 |
 | **FastAPI REST Endpoints** | Planned | — | Phase 8 |
@@ -147,6 +169,14 @@ To maintain transparency and engineering rigor, the table below highlights exact
   - $\text{Recall@k} = \frac{|\text{Retrieved}_k \cap \text{Expected}|}{|\text{Expected}|}$
   - $\text{Precision@k} = \frac{|\text{Retrieved}_k \cap \text{Expected}|}{|\text{Retrieved}_k|}$
   - $\text{MRR} = \frac{1}{N} \sum_{i=1}^N \frac{1}{\text{rank of first relevant chunk}}$
+
+### 4.5 Grounded Answer Generation & Citation Validation (`src/rag_pipeline.py`)
+- **Strict Evidence Grounding**: System instructions require Gemini 2.5 Flash to synthesize answers strictly from retrieved passages, never hallucinating outside facts.
+- **Prompt Injection Defense**: Injected instructions inside PDF documents are treated as untrusted data rather than system commands.
+- **Reference Labeling (`[S1]`, `[S2]`)**: Retrieved chunks are assigned application-controlled reference IDs in the prompt context.
+- **Deterministic Citation Validation**: Python validates all model citations against the query's trusted reference dictionary, mapping valid references to verified citations (`[<source>, p. <page>]`) and safely discarding hallucinated or unknown IDs (`[S99]`).
+- **Context Budgeting**: Enforces `RAG_MAX_CONTEXT_CHARS` without cutting chunks mid-sentence.
+- **Honest Absence Reporting**: Directly outputs an `insufficient_evidence` fallback when relevant evidence is lacking, preventing fabricated answers.
 
 ---
 

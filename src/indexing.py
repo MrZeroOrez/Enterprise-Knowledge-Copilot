@@ -67,7 +67,7 @@ def compute_document_hash(chunks: list[DocumentChunk]) -> str:
 
 
 def index_document(
-    file_source: str | Path | bytes | BinaryIO,
+    file_source: str | Path | bytes | BinaryIO | None = None,
     original_filename: str = "",
     chunk_size: int | None = None,
     overlap: int | None = None,
@@ -76,6 +76,7 @@ def index_document(
     persist_dir: Path | str | None = None,
     config: AppConfig | None = None,
     embedding_client: Any | None = None,
+    file_input: str | Path | bytes | BinaryIO | None = None,
 ) -> IndexingResult:
     """Extract, chunk, embed, and index a PDF document into ChromaDB.
 
@@ -94,6 +95,7 @@ def index_document(
         persist_dir: Optional custom database persistence path.
         config: Optional loaded AppConfig.
         embedding_client: Optional pre-instantiated Gemini client (for unit testing).
+        file_input: Backward-compatible alias for file_source.
 
     Returns:
         IndexingResult detailing pages processed and chunks indexed.
@@ -104,20 +106,24 @@ def index_document(
         CorruptPdfError: If PDF is corrupt.
         EmbeddingError: If embedding generation fails.
     """
+    actual_source = file_source if file_source is not None else file_input
+    if actual_source is None:
+        raise ValueError("file_source or file_input must be provided.")
+
     app_config = config or load_config()
     c_size = chunk_size or app_config.chunk_size
     c_overlap = overlap or app_config.chunk_overlap
 
     # 1. Resolve source name
     source_name = original_filename
-    if not source_name and isinstance(file_source, (str, Path)):
-        source_name = Path(file_source).name
+    if not source_name and isinstance(actual_source, (str, Path)):
+        source_name = Path(actual_source).name
     if not source_name:
         source_name = "document.pdf"
 
     # 2. Extract pages using Phase 2 loader
     pages: list[DocumentPage] = extract_text_from_pdf(
-        source=file_source,
+        source=actual_source,
         original_filename=source_name,
         max_size_bytes=app_config.max_upload_size_bytes,
         require_text=False,

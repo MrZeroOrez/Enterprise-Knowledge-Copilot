@@ -105,7 +105,7 @@ def handle_document_upload(
             content_bytes = file_obj.getvalue() if hasattr(file_obj, "getvalue") else file_obj.read()
 
             result = index_document(
-                file_input=content_bytes,
+                file_source=content_bytes,
                 original_filename=fname,
                 collection_name=collection_name or app_config.chroma_collection_name,
                 persist_dir=persist_dir or app_config.chroma_persist_dir,

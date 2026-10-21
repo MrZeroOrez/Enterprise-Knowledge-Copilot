@@ -58,6 +58,22 @@ class TestDocumentIndexing:
         assert len(stored) == 1
         assert stored[0]["metadata"]["page"] == 1
 
+    def test_indexing_with_file_input_alias(self, temp_chroma_dir: Path):
+        """Should accept file_input as an alias for file_source."""
+        pdf_bytes = make_synthetic_pdf(["Notes on indexing."])
+        mock_client = make_mock_client([[0.1, 0.2, 0.3]])
+
+        result = index_document(
+            file_input=pdf_bytes,
+            original_filename="alias.pdf",
+            persist_dir=temp_chroma_dir,
+            collection_name="alias_test",
+            embedding_client=mock_client,
+        )
+        assert result.status == "indexed"
+        assert result.source == "alias.pdf"
+
+
     def test_empty_document_indexing(self, temp_chroma_dir: Path):
         """Empty documents (0 extractable text) should return status='empty' and not insert records."""
         pdf_bytes = make_synthetic_pdf(["", ""])  # 2 blank pages

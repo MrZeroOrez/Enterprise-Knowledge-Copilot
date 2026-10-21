@@ -106,4 +106,64 @@ This document tracks the incremental implementation progress, test verification 
 - **Future Components**: Embeddings, vector database (ChromaDB), Streamlit UI, and LangGraph workflow will be implemented in upcoming phases.
 
 ### 5. Next Phase
-- **Phase 3**: Gemini Embeddings and ChromaDB Indexing (generating vector embeddings with `text-embedding-004` and persisting chunks in local ChromaDB).
+- **Phase 3**: Gemini Embeddings and ChromaDB Indexing (Completed).
+
+---
+
+## Phase 3 — Gemini Embeddings and ChromaDB Vector Indexing
+
+- **Status**: Completed & Verified
+- **Date**: October 2026
+- **Target Repository**: `https://github.com/MrZeroOrez/Enterprise-Knowledge-Copilot.git`
+- **Default Branch**: `main`
+
+### 1. Features Completed
+- [x] **Gemini Embeddings Integration (`src/embeddings.py`)**: Connected to Google Gemini API using official `google-genai` SDK, using configured embedding model (`text-embedding-004`).
+- [x] **Task Type Specialization**: Applied `RETRIEVAL_DOCUMENT` for chunk embeddings and `RETRIEVAL_QUERY` for search queries, guaranteeing vector compatibility.
+- [x] **Resilience & Bounded Backoff**: Implemented exponential backoff with jitter for transient errors (429 ResourceExhausted, 503) without infinite retry loops.
+- [x] **Vector Quality Validation**: Enforced non-empty, finite numeric validation (detects NaN/Inf) without returning fabricated fallback vectors.
+- [x] **Zero-Import Network Guarantee**: Module imports make zero network requests; API keys are validated only when embedding methods are explicitly invoked.
+- [x] **ChromaDB Vector Store (`src/vector_store.py`)**: Persistent local storage in `data/chromadb/` with explicit `embedding_function=None` to ensure ChromaDB never downloads or executes heavy local models.
+- [x] **Metadata Preservation**: Stores chunk IDs, source document filename, 1-indexed page number, and document content hashes.
+- [x] **Document Indexing Pipeline (`src/indexing.py`)**: Coordinated Phase 2 extraction/chunking with Phase 3 embedding and storage into a unified `index_document()` function.
+- [x] **Duplicate Detection**: Computes document-level SHA256 content hashes to skip re-indexing unchanged documents (`skipped_unchanged`), conserving API quota.
+- [x] **All-or-Nothing Replacement**: Pre-generates and validates all chunk embeddings before touching the vector database. If embedding generation fails, existing index remains untouched.
+- [x] **Scoped Document Replacement**: Updates or deletes chunks belonging strictly to the targeted document while keeping records for all other documents completely intact.
+- [x] **Retrieval Interface (`src/retrieval.py`)**: Added `search_chunks()` returning ranked hits with cosine distance metrics and citation metadata.
+- [x] **100% Mocked Offline Tests**: Added 29 new unit tests covering embedding validation, API retries, rate limits, ChromaDB persistence, change detection, and retrieval ranking.
+
+### 2. Files Created or Modified
+- `requirements.txt` — Added `google-genai` and `chromadb`.
+- `.env.example` — Added `CHROMA_COLLECTION_NAME=enterprise_documents`.
+- `src/config.py` — Added `CHROMA_COLLECTION_NAME`, environment aliases (`GEMINI_MODEL`, `GEMINI_EMBED_MODEL`, `CHROMA_PERSIST_DIR`), and `validate_embedding_model()`.
+- `src/embeddings.py` — Implemented Gemini embeddings with official SDK, bounded backoff, and vector checks.
+- `src/vector_store.py` — Implemented persistent ChromaDB operations with `embedding_function=None` and metadata filtering.
+- `src/indexing.py` — Implemented end-to-end `index_document()` pipeline with change detection and atomic replacement.
+- `src/retrieval.py` — Implemented `search_chunks()` semantic similarity search.
+- `tests/test_config.py` — Added tests for collection name, aliases, and embedding model validation.
+- `tests/test_embeddings.py` — 11 unit tests for embedding generation, batching, and error handling.
+- `tests/test_vector_store.py` — 6 unit tests for ChromaDB storage, query ranking, and persistence.
+- `tests/test_indexing.py` — 5 unit tests for pipeline indexing, duplicate skips, and safe replacement.
+- `tests/test_retrieval.py` — 6 unit tests for semantic search and top-k ranking.
+- `docs/architecture.md` — Updated pipeline diagram and component status table.
+- `docs/PROJECT_PROGRESS.md` — Documented Phase 3 progress (this file).
+- `README.md` — Updated with embeddings guide, ChromaDB rationale, manual testing guide, and quota details.
+
+### 3. Tests Executed and Results
+- **Command**: `.\.venv\Scripts\python.exe -m pytest -v`
+- **Result**: **79 passed in 16.63s** (100% pass rate)
+  - `tests/test_chunking.py`: 25 PASSED
+  - `tests/test_config.py`: 11 PASSED
+  - `tests/test_document_loader.py`: 15 PASSED
+  - `tests/test_embeddings.py`: 11 PASSED
+  - `tests/test_indexing.py`: 5 PASSED
+  - `tests/test_retrieval.py`: 6 PASSED
+  - `tests/test_vector_store.py`: 6 PASSED
+
+### 4. Known Issues and Limitations
+- **Gemini Free-Tier Rate Limits**: The free tier has rate limits (e.g. 15 RPM for free Gemini APIs); our bounded backoff handles transient spikes, but large document batches should remain modest.
+- **Model Consistency**: Document chunks and search queries must use the same embedding model (`text-embedding-004`). If the model is changed in `.env`, the collection must be re-indexed.
+- **RAG Generation**: LLM question answering and citations synthesis will be implemented in Phase 5.
+
+### 5. Next Phase
+- **Phase 4**: Semantic Retrieval and Relevance Checks (relevance threshold filtering, context window formatting, and retrieval diagnostics).

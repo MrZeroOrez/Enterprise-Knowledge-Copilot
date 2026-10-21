@@ -9,10 +9,10 @@ Designed for resource-constrained laptops:
 
 ---
 
-## Current Status: Phase 2 (PDF Processing & Document Preparation)
+## Current Status: Phase 3 (Gemini Embeddings & ChromaDB Vector Indexing)
 
 > [!NOTE]  
-> We have completed **Phase 2**. The PDF validation, safe storage, page-level text extraction with whitespace normalization, scanned document detection, and deterministic page-bounded chunking are fully implemented and verified with 50 automated tests. Embeddings, ChromaDB, and UI will be added in upcoming phases.
+> We have completed **Phase 3**. The project now generates dense vector embeddings via Google's official `google-genai` SDK (`text-embedding-004`), stores vectors and citation metadata persistently in local ChromaDB (`data/chromadb/`), detects content changes to prevent duplicate indexing, and performs semantic similarity search across stored chunks. All 79 automated unit tests pass offline with zero network calls.
 
 ---
 
@@ -21,24 +21,29 @@ Designed for resource-constrained laptops:
 ```text
 enterprise-knowledge-copilot/
 ├── app.py                      # UI entry point (Planned for Phase 6)
-├── requirements.txt            # Phase 1 dependencies (lightweight)
+├── requirements.txt            # Project dependencies (pypdf, dotenv, google-genai, chromadb, pytest)
 ├── .env.example                # Environment variable template
-├── .gitignore                  # Git ignore rules (secrets, venvs, caches)
+├── .gitignore                  # Git ignore rules (secrets, venvs, caches, vector db)
 ├── README.md                   # Beginner setup guide (this file)
 ├── src/
 │   ├── __init__.py             # Package marker
 │   ├── config.py               # Safe environment & config loader
-│   ├── document_loader.py      # PDF text and metadata extraction
-│   ├── chunking.py             # Deterministic chunking with overlap
-│   ├── embeddings.py           # Gemini embeddings (Planned for Phase 3)
-│   ├── vector_store.py         # ChromaDB interface (Planned for Phase 3)
-│   ├── retrieval.py            # Semantic retrieval (Planned for Phase 4)
+│   ├── document_loader.py      # PDF text & metadata extraction
+│   ├── chunking.py             # Deterministic chunking with page boundary preservation
+│   ├── embeddings.py           # Gemini embeddings via google-genai SDK (Phase 3)
+│   ├── vector_store.py         # Persistent local ChromaDB store (Phase 3)
+│   ├── indexing.py             # End-to-end PDF indexing pipeline (Phase 3)
+│   ├── retrieval.py            # Semantic retrieval & similarity search (Phase 3)
 │   └── rag_pipeline.py         # Grounded RAG pipeline (Planned for Phase 5)
 ├── tests/
 │   ├── __init__.py
-│   ├── test_config.py          # Config validation tests
-│   ├── test_chunking.py        # Chunking & overlap tests
-│   └── test_document_loader.py # PDF extraction tests
+│   ├── test_config.py          # Config validation & secret masking tests (11 tests)
+│   ├── test_document_loader.py # PDF validation & extraction tests (15 tests)
+│   ├── test_chunking.py        # Chunking & overlap tests (25 tests)
+│   ├── test_embeddings.py      # Embedding generation & retry tests (11 tests)
+│   ├── test_vector_store.py    # ChromaDB operations & persistence tests (6 tests)
+│   ├── test_indexing.py        # Pipeline & deduplication tests (5 tests)
+│   └── test_retrieval.py       # Semantic search & ranking tests (6 tests)
 ├── data/
 │   └── uploads/                # Document storage (.gitkeep)
 └── docs/
@@ -77,35 +82,57 @@ python -m venv .venv
 > `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process`  
 > Then re-run `.\.venv\Scripts\Activate.ps1`. When activated, your prompt will show `(.venv)`.
 
-### 4. Install Phase 1 Dependencies
+### 4. Install Project Dependencies
 
-Upgrade pip and install the lightweight Phase 1 dependencies:
+Upgrade pip and install dependencies:
 
 ```powershell
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 5. Create Your Local `.env` Configuration
+### 5. Configure Your Local `.env` File
 
-Copy the `.env.example` template to `.env`:
+Copy `.env.example` to `.env`:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-> [!IMPORTANT]  
-> Running the **Phase 1 unit tests does not require an active Gemini API key** or internet connection. When you reach Phase 3, you will obtain a free API key from [Google AI Studio](https://aistudio.google.com/) and paste it into `.env`.
+Open `.env` in a text editor and configure your Gemini API key:
+```dotenv
+GEMINI_API_KEY=your_actual_gemini_api_key_here
+GEMINI_EMBEDDING_MODEL=text-embedding-004
+GEMINI_CHAT_MODEL=gemini-2.5-flash
+CHROMA_PERSIST_DIRECTORY=data/chromadb
+CHROMA_COLLECTION_NAME=enterprise_documents
+```
+
+> [!TIP]  
+> You can obtain a free Gemini API key from [Google AI Studio](https://aistudio.google.com/).
 
 ### 6. Run the Automated Unit Test Suite
 
-Execute all unit tests using `pytest`:
+Run all unit tests using `pytest`:
 
 ```powershell
 pytest -v
 ```
 
-All tests should pass cleanly!
+All 79 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
+
+---
+
+## Understanding the Core Concepts
+
+### What are Embeddings?
+An **embedding** is a way of translating human language (words, sentences, document chunks) into a dense list of numbers (a vector). For example, `text-embedding-004` turns a chunk of text into a list of 768 floating-point numbers. Sentences with similar meanings end up mathematically close to each other in this 768-dimensional space. This allows our Copilot to find relevant information based on **conceptual meaning**, not just exact keyword matches.
+
+### Why ChromaDB?
+**ChromaDB** is a lightweight, open-source vector database designed for AI applications. It stores our document chunks alongside their mathematical embeddings directly on disk in `data/chromadb/`. We chose ChromaDB because:
+- It requires **no Docker, no server daemon, and minimal RAM**.
+- It runs entirely within the local Python process.
+- We configure it with `embedding_function=None`, guaranteeing it uses our Gemini embeddings directly without silently downloading heavy local machine learning models.
 
 ---
 
@@ -127,31 +154,61 @@ All tests should pass cleanly!
 - **Interface (`chunk_pages`)**: Accepts `pages`, `chunk_size`, `overlap`, and `deduplicate`.
 - **Page Boundary Preservation**: Chunks are strictly confined within their originating page; content from adjacent pages is never merged, ensuring 100% unambiguous source citations.
 - **Stable Identifiers**: Generates deterministic, content-hashed IDs (`<source>_p<page>_c<idx>_<hash>`) without leaking document text.
-- **Dictionary Export**: `chunk.to_dict()` and `page.to_dict()` provide standard dictionaries for downstream RAG consumption.
+
+### 4. Gemini Embeddings (`src/embeddings.py`)
+- **Official SDK**: Built using Google's official `google-genai` Python library.
+- **Task Types**: Uses `RETRIEVAL_DOCUMENT` for chunk vectors and `RETRIEVAL_QUERY` for search questions.
+- **Bounded Exponential Backoff**: Automatically handles transient 429 / ResourceExhausted rate limits with retries and jitter.
+- **Finite Vector Verification**: Validates returned vectors, rejecting NaN, Inf, or empty responses without fabricating data.
+
+### 5. Persistent ChromaDB Vector Store (`src/vector_store.py`)
+- **Explicit Embeddings**: Operates with `embedding_function=None` to ensure zero local model downloads.
+- **Citation Metadata**: Preserves `source`, `page`, `chunk_id`, and `doc_hash` on every record.
+- **Scoped Document Deletion**: Allows cleanly updating or deleting one document's chunks without touching other documents.
+
+### 6. End-to-End Indexing Pipeline (`src/indexing.py`)
+- **Unified Pipeline (`index_document`)**: PDF -> validation -> extraction -> chunking -> embedding -> ChromaDB.
+- **Duplicate Detection**: Computes document-level content hashes; skips re-indexing unchanged documents (`skipped_unchanged`) to conserve API quota.
+- **All-or-Nothing Replacement**: Computes all embeddings before touching ChromaDB. If embedding fails halfway, the previous index remains untouched.
+
+### 7. Initial Retrieval Interface (`src/retrieval.py`)
+- **Semantic Search (`search_chunks`)**: Generates query embeddings with `RETRIEVAL_QUERY` and queries ChromaDB for top-k nearest chunks with cosine distance metrics.
 
 ---
 
-## Supported PDF Behavior & File-Size Limits
+## Manual Indexing Verification (Optional)
 
-- **Default Upload Limit**: 10 MB (configured via `MAX_UPLOAD_SIZE_MB` in `.env`).
-- **Standard Text PDFs**: Fully supported. Text and page citations are accurately preserved.
-- **Multi-Page Documents**: Fully supported. Empty pages within a multi-page document are handled gracefully without aborting extraction.
-- **Password-Protected / Encrypted PDFs**: Rejected with `EncryptedPdfError`.
-- **Scanned / Image-Only PDFs**: Detected and rejected with `ScannedPdfError` explaining that OCR is not implemented.
+Once you set a real `GEMINI_API_KEY` in `.env`, you can test indexing and retrieval from PowerShell:
+
+```powershell
+python -c "
+from src.indexing import index_document
+from src.retrieval import search_chunks
+
+# Index any PDF file in data/uploads/
+# result = index_document('data/uploads/sample.pdf')
+# print(result.to_dict())
+
+# Search indexed chunks
+# hits = search_chunks('What are the company policies?', top_k=3)
+# for h in hits:
+#     print(f'Page {h[\"page\"]} ({h[\"source\"]}): {h[\"text\"][:100]}...')
+"
+```
 
 ---
 
-## Known Limitations
+## Free-Tier Quotas & Limitations
 
+- **Gemini Free-Tier Rate Limits**: Free Gemini API keys have rate limits (typically 15 requests per minute for embedding models). Our built-in retry backoff handles momentary bursts, but very large multi-hundred-page PDFs should be uploaded in moderation.
+- **Model Consistency**: Document chunks and search queries must use the same embedding model (`text-embedding-004`). If you change the model in `.env`, the existing collection should be rebuilt.
 - **No OCR Support**: Only digital text embedded in PDFs can be extracted. Optical Character Recognition (OCR) for scanned images is not supported.
-- **No Vector DB or LLM Integration Yet**: Embedding generation and vector search will be implemented in Phase 3.
 
 ---
 
-## Next Up: Phase 3
+## Next Up: Phase 4
 
-In **Phase 3 (Gemini Embeddings & ChromaDB Indexing)**, we will:
-- Integrate the official `google-genai` Python SDK.
-- Configure Gemini `text-embedding-004` (or configured embedding model).
-- Set up local persistent ChromaDB vector storage under `data/chromadb/`.
-- Index document chunks with metadata and stable IDs for semantic retrieval.
+In **Phase 4 (Semantic Retrieval and Relevance Checks)**, we will:
+- Implement similarity score calibration and relevance threshold filtering.
+- Prevent irrelevant document chunks from polluting prompt context.
+- Add retrieval diagnostics and structured context formatting for LLM grounding.

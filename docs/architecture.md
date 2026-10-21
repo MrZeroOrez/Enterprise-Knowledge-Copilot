@@ -1,7 +1,7 @@
 # Enterprise Knowledge Copilot — Architecture & System Design
 
 > **Document Status**: Active / Phased Architecture Plan  
-> **Current Version**: Phase 2 Verified (PDF Processing & Document Preparation)  
+> **Current Version**: Phase 3 Verified (Gemini Embeddings & ChromaDB Vector Indexing)  
 > **Last Updated**: October 2026  
 
 ---
@@ -96,10 +96,12 @@ To maintain transparency and engineering rigor, the table below highlights exact
 | **PDF Extraction (`pypdf`)** | **Implemented** | Phase 1 | Phase 1 |
 | **PDF Upload Validation & Storage** | **Implemented** | Phase 2 | Phase 2 |
 | **Scanned Document Detection** | **Implemented** | Phase 2 | Phase 2 |
-| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1 & 2 | Phase 1 & 2 |
-| **Gemini Embeddings Integration** | Planned | — | Phase 3 |
-| **ChromaDB Vector Store** | Planned | — | Phase 3 |
-| **Semantic Retrieval (Top-k)** | Planned | — | Phase 4 |
+| **Gemini Embeddings Integration** | **Implemented** | Phase 3 | Phase 3 |
+| **ChromaDB Vector Store** | **Implemented** | Phase 3 | Phase 3 |
+| **Document Indexing Pipeline** | **Implemented** | Phase 3 | Phase 3 |
+| **Initial Retrieval Interface** | **Implemented** | Phase 3 | Phase 3 |
+| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1, 2, 3 | Phase 1, 2, 3 |
+| **Semantic Retrieval & Relevance Checks** | Planned | — | Phase 4 |
 | **Grounded Gemini Q&A with Citations** | Planned | — | Phase 5 |
 | **Streamlit Interactive UI** | Planned | — | Phase 6 |
 | **Short-term Conversation History** | Planned | — | Phase 7 |

@@ -39,6 +39,7 @@ class TestAppConfig:
         assert config.max_upload_size_bytes == 10 * 1024 * 1024
         assert config.upload_dir == Path("data/uploads")
         assert config.chroma_persist_dir == Path("data/chromadb")
+        assert config.chroma_collection_name == "enterprise_documents"
         assert config.gemini_api_key is None
         assert not config.is_api_key_set()
 
@@ -50,6 +51,7 @@ class TestAppConfig:
         monkeypatch.setenv("CHUNK_SIZE", "800")
         monkeypatch.setenv("CHUNK_OVERLAP", "150")
         monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "25")
+        monkeypatch.setenv("CHROMA_COLLECTION_NAME", "custom_docs")
 
         config = load_config()
 
@@ -60,7 +62,26 @@ class TestAppConfig:
         assert config.chunk_overlap == 150
         assert config.max_upload_size_mb == 25
         assert config.max_upload_size_bytes == 25 * 1024 * 1024
+        assert config.chroma_collection_name == "custom_docs"
         assert config.is_api_key_set()
+
+    def test_environment_variable_aliases(self, monkeypatch, tmp_path):
+        """Should support GEMINI_MODEL, GEMINI_EMBED_MODEL, and CHROMA_PERSIST_DIR aliases."""
+        monkeypatch.delenv("GEMINI_CHAT_MODEL", raising=False)
+        monkeypatch.delenv("GEMINI_EMBEDDING_MODEL", raising=False)
+        monkeypatch.delenv("CHROMA_PERSIST_DIRECTORY", raising=False)
+
+        monkeypatch.setenv("GEMINI_MODEL", "gemini-2.0-flash")
+        monkeypatch.setenv("GEMINI_EMBED_MODEL", "text-embedding-004")
+        monkeypatch.setenv("CHROMA_PERSIST_DIR", "data/custom_chroma")
+
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        config = load_config(env_path=empty_env)
+        assert config.chat_model == "gemini-2.0-flash"
+        assert config.embedding_model == "text-embedding-004"
+        assert config.chroma_persist_dir == Path("data/custom_chroma")
 
     def test_invalid_max_upload_size_in_env(self, monkeypatch):
         """Should raise ValueError when MAX_UPLOAD_SIZE_MB is not integer or is <= 0."""

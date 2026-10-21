@@ -1,19 +1,23 @@
-# Enterprise Knowledge Copilot - Phase 1 Dependencies
-# Only dependencies needed for initial foundation, document extraction,
-# deterministic chunking, configuration validation, and unit testing.
+# Enterprise Knowledge Copilot - Dependencies
+# Modular dependencies for PDF processing, embeddings, and vector indexing.
 
-# PDF extraction
+# PDF extraction (Phase 1 & 2)
 pypdf>=5.0.0
 
-# Environment and configuration management
+# Environment and configuration management (Phase 1)
 python-dotenv>=1.0.0
 
-# Unit testing framework
+# Google Gemini API official SDK (Phase 3)
+google-genai>=2.0.0
+
+# Local persistent vector database (Phase 3)
+chromadb>=1.0.0
+
+# Automated testing framework
 pytest>=8.0.0
 
 # ------------------------------------------------------------------------------
 # Future Phase Dependencies (To be added incrementally in later phases):
-# Phase 3: google-genai, chromadb
 # Phase 6: streamlit
 # Phase 8: fastapi, uvicorn
 # Phase 10: langgraph

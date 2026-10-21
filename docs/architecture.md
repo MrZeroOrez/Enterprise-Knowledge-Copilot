@@ -1,7 +1,7 @@
 # Enterprise Knowledge Copilot — Architecture & System Design
 
 > **Document Status**: Active / Phased Architecture Plan  
-> **Current Version**: Phase 5 Verified (Grounded LLM Answer Generation with Verifiable Citations)  
+> **Current Version**: Phase 6 Verified (Streamlit Document Chat Interface)  
 > **Last Updated**: October 2026  
 
 ---
@@ -125,8 +125,8 @@ To maintain transparency and engineering rigor, the table below highlights exact
 | **Semantic Retrieval & Relevance Checks** | **Implemented** | Phase 4 | Phase 4 |
 | **Retrieval Evaluation Metrics (Recall/MRR)** | **Implemented** | Phase 4 | Phase 4 |
 | **Grounded Gemini Q&A with Citations** | **Implemented** | Phase 5 | Phase 5 |
-| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1–5 | Phase 1–5 |
-| **Streamlit Interactive UI** | Planned | — | Phase 6 |
+| **Streamlit Interactive UI** | **Implemented** | Phase 6 | Phase 6 |
+| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1–6 | Phase 1–6 |
 | **Short-term Conversation History** | Planned | — | Phase 7 |
 | **FastAPI REST Endpoints** | Planned | — | Phase 8 |
 | **SQLite Persistent Memory** | Planned | — | Phase 9 |
@@ -177,6 +177,13 @@ To maintain transparency and engineering rigor, the table below highlights exact
 - **Deterministic Citation Validation**: Python validates all model citations against the query's trusted reference dictionary, mapping valid references to verified citations (`[<source>, p. <page>]`) and safely discarding hallucinated or unknown IDs (`[S99]`).
 - **Context Budgeting**: Enforces `RAG_MAX_CONTEXT_CHARS` without cutting chunks mid-sentence.
 - **Honest Absence Reporting**: Directly outputs an `insufficient_evidence` fallback when relevant evidence is lacking, preventing fabricated answers.
+
+### 4.6 Streamlit Web Application Interface (`app.py`)
+- **Document Management Sidebar**: Enables uploading single or multiple PDF documents with on-demand indexing triggered by an explicit action button.
+- **Rerun-Safe State Management**: Chat history is persisted across Streamlit script reruns in `st.session_state.messages`.
+- **Decoupled Backend Execution**: `app.py` directly delegates indexing to `src/indexing.py` and question answering to `src/rag_pipeline.py` without duplicating core logic.
+- **Safe Citation Presentation**: Automatically renders formatted source citations (`[filename, p. N]`) beneath assistant answers.
+- **Isolated Clear-Chat Action**: Allows resetting active conversation messages without deleting uploaded documents or altering ChromaDB indices.
 
 ---
 

@@ -270,6 +270,42 @@ def get_collection_stats(
     }
 
 
+def list_indexed_documents(
+    collection_name: str | None = None,
+    persist_dir: Path | str | None = None,
+) -> list[dict[str, Any]]:
+    """List all indexed documents in the collection with their chunk counts.
+
+    Args:
+        collection_name: Target collection name.
+        persist_dir: Database directory.
+
+    Returns:
+        List of dicts: [{'source': 'doc.pdf', 'chunk_count': 5}, ...]
+    """
+    collection = get_or_create_collection(
+        collection_name=collection_name,
+        persist_dir=persist_dir,
+    )
+
+    total_chunks = collection.count()
+    if total_chunks == 0:
+        return []
+
+    from collections import Counter
+
+    counts: Counter[str] = Counter()
+    results = collection.get(include=["metadatas"])
+    for meta in results.get("metadatas", []) or []:
+        if meta and "source" in meta:
+            counts[str(meta["source"])] += 1
+
+    return [
+        {"source": src, "chunk_count": count}
+        for src, count in sorted(counts.items())
+    ]
+
+
 def query_vector_store(
     query_embedding: list[float],
     top_k: int = 5,

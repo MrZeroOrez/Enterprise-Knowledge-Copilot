@@ -13,12 +13,14 @@ google-genai>=2.0.0
 # Local persistent vector database (Phase 3)
 chromadb>=1.0.0
 
+# Interactive Web Application UI (Phase 6)
+streamlit>=1.35.0
+
 # Automated testing framework
 pytest>=8.0.0
 
 # ------------------------------------------------------------------------------
 # Future Phase Dependencies (To be added incrementally in later phases):
-# Phase 6: streamlit
 # Phase 8: fastapi, uvicorn
 # Phase 10: langgraph
 # ------------------------------------------------------------------------------

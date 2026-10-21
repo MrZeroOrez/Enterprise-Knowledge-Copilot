@@ -11,6 +11,7 @@ from src.vector_store import (
     get_chunks_by_source,
     get_collection_stats,
     get_or_create_collection,
+    list_indexed_documents,
     query_vector_store,
     reset_collection,
 )
@@ -202,3 +203,27 @@ class TestChromaVectorStore:
             persist_dir=temp_db_dir,
         )
         assert hits == []
+
+    def test_list_indexed_documents(self, temp_db_dir: Path):
+        """Should list all indexed documents with their chunk counts."""
+        # Empty collection
+        docs = list_indexed_documents(collection_name="list_test", persist_dir=temp_db_dir)
+        assert docs == []
+
+        chunks = [
+            DocumentChunk("h_c0", "H1", 1, "handbook.pdf", 0),
+            DocumentChunk("h_c1", "H2", 2, "handbook.pdf", 1),
+            DocumentChunk("p_c0", "P1", 1, "policy.pdf", 0),
+        ]
+        add_chunks_to_vector_store(
+            chunks=chunks,
+            embeddings=[[0.1, 0.1], [0.2, 0.2], [0.3, 0.3]],
+            collection_name="list_test",
+            persist_dir=temp_db_dir,
+        )
+
+        docs = list_indexed_documents(collection_name="list_test", persist_dir=temp_db_dir)
+        assert len(docs) == 2
+        assert docs[0] == {"source": "handbook.pdf", "chunk_count": 2}
+        assert docs[1] == {"source": "policy.pdf", "chunk_count": 1}
+

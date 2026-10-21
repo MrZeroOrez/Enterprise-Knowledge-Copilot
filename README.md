@@ -9,10 +9,10 @@ Designed for resource-constrained laptops:
 
 ---
 
-## Current Status: Phase 5 (Grounded LLM Answer Generation with Verifiable Citations)
+## Current Status: Phase 6 (Streamlit Document Chat Interface)
 
 > [!NOTE]  
-> We have completed **Phase 5**. The project now implements an end-to-end grounded question-answering pipeline (`src/rag_pipeline.py`) powered by Google's Gemini 2.5 Flash model. Answers are strictly synthesized from retrieved document evidence. Citations are deterministically validated using trusted application metadata (`[filename.pdf, p. N]`), and hallucinated citations are discarded. When documents do not contain the answer, the assistant responds with an honest fallback message rather than hallucinating. All 134 automated unit tests pass offline with zero network calls.
+> We have completed **Phase 6**. The project now includes a complete, user-friendly interactive web interface built with **Streamlit** (`app.py`). Users can upload PDF documents, trigger on-demand indexing with real-time feedback, view indexed document statistics, filter search scope, and chat with their knowledge base to receive grounded answers with verifiable page-level citations. All 148 automated unit tests pass offline with zero network calls.
 
 ---
 
@@ -20,8 +20,8 @@ Designed for resource-constrained laptops:
 
 ```text
 enterprise-knowledge-copilot/
-├── app.py                      # UI entry point (Planned for Phase 6)
-├── requirements.txt            # Project dependencies (pypdf, dotenv, google-genai, chromadb, pytest)
+├── app.py                      # Interactive Streamlit Web UI (Phase 6)
+├── requirements.txt            # Project dependencies (pypdf, dotenv, google-genai, chromadb, streamlit, pytest)
 ├── .env.example                # Environment variable template
 ├── .gitignore                  # Git ignore rules (secrets, venvs, caches, vector db)
 ├── README.md                   # Beginner setup guide (this file)
@@ -31,11 +31,11 @@ enterprise-knowledge-copilot/
 │   ├── document_loader.py      # PDF text & metadata extraction
 │   ├── chunking.py             # Deterministic chunking with page boundary preservation
 │   ├── embeddings.py           # Gemini embeddings via google-genai SDK
-│   ├── vector_store.py         # Persistent local ChromaDB store
+│   ├── vector_store.py         # Persistent local ChromaDB store & document listing
 │   ├── indexing.py             # End-to-end PDF indexing pipeline
 │   ├── retrieval.py            # Semantic retrieval, thresholding & context formatting
 │   ├── evaluation.py           # Retrieval metrics: Recall@k, Precision@k, MRR
-│   └── rag_pipeline.py         # Grounded generation, citation validation & fallback (Phase 5)
+│   └── rag_pipeline.py         # Grounded generation, citation validation & fallback
 ├── tests/
 │   ├── __init__.py
 │   ├── fixtures/
@@ -44,11 +44,12 @@ enterprise-knowledge-copilot/
 │   ├── test_document_loader.py # PDF validation & extraction tests (16 tests)
 │   ├── test_chunking.py        # Chunking & overlap tests (25 tests)
 │   ├── test_embeddings.py      # Embedding generation & retry tests (11 tests)
-│   ├── test_vector_store.py    # ChromaDB operations & persistence tests (6 tests)
+│   ├── test_vector_store.py    # ChromaDB operations & persistence tests (7 tests)
 │   ├── test_indexing.py        # Pipeline & deduplication tests (5 tests)
 │   ├── test_retrieval.py       # Semantic search, thresholding & filter tests (15 tests)
 │   ├── test_evaluation.py      # Metrics calculation & benchmark tests (16 tests)
-│   └── test_rag_pipeline.py    # Grounded generation, citations & injection defense (21 tests)
+│   ├── test_rag_pipeline.py    # Grounded generation, citations & injection defense (21 tests)
+│   └── test_ui.py              # Streamlit state, uploads, queries & citations (13 tests)
 ├── data/
 │   └── uploads/                # Document storage (.gitkeep)
 └── docs/
@@ -127,7 +128,20 @@ Run all unit tests using `pytest`:
 pytest -v
 ```
 
-All 134 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
+All 148 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
+
+### 7. Launch the Interactive Web Application
+
+Start the Streamlit document chat interface:
+
+```powershell
+python -m streamlit run app.py
+```
+
+Your default web browser will automatically open `http://localhost:8501`.
+- Upload enterprise PDF documents in the left sidebar.
+- Click **Index Documents** to process and store vector embeddings.
+- Ask questions in the chat area and view grounded answers with exact source citations.
 
 ---
 
@@ -217,12 +231,30 @@ User-uploaded PDFs may contain adversarial text (e.g., *"SYSTEM OVERRIDE: ignore
 - **Deterministic Citations (`validate_and_format_citations`)**: Verifies reference markers `[S1]` against trusted retrieval metadata, rendering clean citations `[source, p. page]` and stripping hallucinated IDs.
 - **Honest Fallback**: Explicitly returns `insufficient_evidence` when no matching evidence exists, without hallucinating.
 
+### 10. Interactive Streamlit Document Chat (`app.py` — Phase 6)
+- **Document Management Sidebar**: Upload multiple PDF files with validation and on-demand indexing via an explicit button.
+- **Live Progress & Feedback**: Displays per-file indexing outcomes (pages processed, chunks indexed, or specific errors).
+- **Library Overview**: Lists all indexed documents and chunk statistics, with an optional search scope filter dropdown.
+- **Active Chat History**: Preserves conversation messages in session state with clear role attribution.
+- **Clear Chat**: Resets chat messages safely without modifying indexed documents or the vector database.
+- **Safe State & Error Handling**: Gracefully maps rate limits, missing API keys, and invalid inputs into user-friendly alerts without raw stack traces.
+
 ---
 
 ## Manual End-to-End Verification (Optional)
 
-Once you set a real `GEMINI_API_KEY` in `.env`, you can execute manual end-to-end question answering in PowerShell:
+Once you set a real `GEMINI_API_KEY` in `.env`, you can test the application either via Streamlit or PowerShell:
 
+### Option A: Via Streamlit Web Interface (Recommended)
+```powershell
+python -m streamlit run app.py
+```
+1. Upload a PDF (e.g. employee handbook).
+2. Click **Index Documents**.
+3. Ask: *"What is the policy on annual leave?"*
+4. Confirm the answer identifies leave days and displays the exact source citation.
+
+### Option B: Via PowerShell CLI
 ```powershell
 python -c "
 from src.indexing import index_document
@@ -253,9 +285,9 @@ print(f'Answer: {unanswerable[\"answer\"]}')
 
 ---
 
-## Next Up: Phase 6
+## Next Up: Phase 7
 
-In **Phase 6 (Streamlit Interactive Web Application)**, we will:
-- Build an interactive web UI with document drag-and-drop upload.
-- Display real-time indexing status and document library overview.
-- Provide a clean conversational question-answering interface displaying answers with clickable source citations.
+In **Phase 7 (Short-term Conversation History and Context Window Management)**, we will:
+- Maintain multi-turn conversational context in the RAG pipeline.
+- Implement conversational query reformulation to handle follow-up questions (e.g. *"Can I take it all at once?"* following an annual leave question).
+- Manage token budgets across both chat history and retrieved document evidence.

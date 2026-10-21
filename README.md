@@ -108,17 +108,20 @@ Copy-Item .env.example .env
 Open `.env` in a text editor and configure your Gemini API key:
 ```dotenv
 GEMINI_API_KEY=your_actual_gemini_api_key_here
-GEMINI_CHAT_MODEL=gemini-2.5-flash
-GEMINI_EMBEDDING_MODEL=text-embedding-004
+GEMINI_CHAT_MODEL=gemini-3.5-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
 CHROMA_PERSIST_DIRECTORY=data/chromadb
 CHROMA_COLLECTION_NAME=enterprise_documents
 RETRIEVAL_TOP_K=5
 RETRIEVAL_MAX_TOP_K=50
 RAG_MAX_CONTEXT_CHARS=20000
+LOG_LEVEL=INFO
+LOG_FILE=logs/app.log
 ```
 
 > [!TIP]  
 > You can obtain a free Gemini API key from [Google AI Studio](https://aistudio.google.com/).
+> Supported chat models include `gemini-3.5-flash` (recommended), `gemini-3.5-flash-lite`, and `gemini-3.8-flash`.
 
 ### 6. Run the Automated Unit Test Suite
 
@@ -128,7 +131,7 @@ Run all unit tests using `pytest`:
 pytest -v
 ```
 
-All 148 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
+All 156 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
 
 ### 7. Launch the Interactive Web Application
 

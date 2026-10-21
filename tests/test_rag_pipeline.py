@@ -231,12 +231,12 @@ class TestGroundedGeneration:
         ans = generate_chat_answer(
             prompt="Question: How much leave?",
             client=mock_client,
-            model="gemini-2.5-flash",
+            model="gemini-3.5-flash",
         )
         assert ans == "Employees get 20 days leave [S1]."
 
         call_args = mock_client.models.generate_content.call_args
-        assert call_args.kwargs["model"] == "gemini-2.5-flash"
+        assert call_args.kwargs["model"] == "gemini-3.5-flash"
         gen_config = call_args.kwargs["config"]
         assert gen_config.temperature == 0.0
         assert gen_config.system_instruction == DEFAULT_SYSTEM_INSTRUCTION
@@ -286,7 +286,7 @@ class TestGroundedGeneration:
 
         cfg = AppConfig(
             gemini_api_key=None,
-            chat_model="gemini-2.5-flash",
+            chat_model="gemini-3.5-flash",
             embedding_model="text-embedding-004",
             chunk_size=1000,
             chunk_overlap=200,

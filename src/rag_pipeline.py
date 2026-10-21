@@ -204,7 +204,7 @@ def generate_chat_answer(
     prompt: str,
     system_instruction: str = DEFAULT_SYSTEM_INSTRUCTION,
     client: genai.Client | None = None,
-    model: str = "gemini-2.5-flash",
+    model: str = "gemini-3.5-flash",
     api_key: str | None = None,
     max_retries: int = DEFAULT_RAG_MAX_RETRIES,
     initial_delay: float = DEFAULT_RAG_INITIAL_RETRY_DELAY,
@@ -241,18 +241,38 @@ def generate_chat_answer(
 
     for attempt in range(max_retries + 1):
         try:
+            logger.info(
+                "Calling Gemini chat model '%s' (attempt %d/%d, prompt_chars=%d)",
+                model,
+                attempt + 1,
+                max_retries + 1,
+                len(prompt),
+            )
             response = active_client.models.generate_content(
                 model=model,
                 contents=prompt,
                 config=gen_config,
             )
             text = response.text if response and hasattr(response, "text") and response.text else ""
-            return text.strip()
+            cleaned_text = text.strip()
+            logger.info(
+                "Gemini response received from '%s' (chars=%d)",
+                model,
+                len(cleaned_text),
+            )
+            return cleaned_text
 
         except APIError as exc:
             last_error = exc
             err_code = getattr(exc, "code", None)
             err_msg = str(exc)
+
+            logger.error(
+                "Gemini API call failed for model '%s' with code %s: %s",
+                model,
+                err_code,
+                err_msg,
+            )
 
             is_rate_limit = (
                 err_code == 429
@@ -285,6 +305,7 @@ def generate_chat_answer(
             ) from exc
 
         except Exception as exc:
+            logger.error("Unexpected error during answer generation with '%s': %s", model, exc, exc_info=True)
             raise RAGGenerationError(f"Unexpected error during answer generation: {exc}") from exc
 
     raise RAGGenerationError(
@@ -375,10 +396,19 @@ def answer_question(
     col_name = collection_name or app_config.chroma_collection_name
     db_dir = persist_dir or app_config.chroma_persist_dir
 
+    logger.info(
+        "RAG question received: '%s' (filter=%s, top_k=%d, model=%s)",
+        cleaned_question[:100],
+        source_filter,
+        resolved_top_k,
+        app_config.chat_model,
+    )
+
     # 2. Check if collection has indexed documents
     try:
         stats = get_collection_stats(collection_name=col_name, persist_dir=db_dir)
         if stats.get("total_chunks", 0) == 0:
+            logger.warning("RAG aborted: no indexed documents in collection '%s'", col_name)
             return {
                 "answer": "No indexed documents found. Please upload and index documents before asking questions.",
                 "citations": [],
@@ -402,9 +432,11 @@ def answer_question(
         config=app_config,
         embedding_client=embedding_client,
     )
+    logger.info("Retrieved %d candidate chunks from vector store", len(hits))
 
     # 4. Check if usable evidence exists
     if not hits:
+        logger.info("No relevant chunks found exceeding threshold. Returning insufficient evidence.")
         return {
             "answer": INSUFFICIENT_EVIDENCE_MESSAGE,
             "citations": [],
@@ -474,6 +506,14 @@ def answer_question(
 
     final_status = "insufficient_evidence" if is_insufficient else "answered"
     final_answer = formatted_answer if formatted_answer else INSUFFICIENT_EVIDENCE_MESSAGE
+
+    logger.info(
+        "RAG complete: status=%s, validated_citations=%d, used_chunks=%d, truncated=%s",
+        final_status,
+        len(validated_citations),
+        len(trusted_refs),
+        is_truncated,
+    )
 
     return {
         "answer": final_answer,

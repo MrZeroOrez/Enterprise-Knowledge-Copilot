@@ -319,3 +319,56 @@ This document tracks the incremental implementation progress, test verification 
 ### 5. Next Phase
 - **Phase 7**: Short-term Conversation History and Context Window Management (multi-turn query rewriting, conversational sliding context, and token budgeting).
 
+---
+
+## Phase 6 Patch — Gemini Chat Model Update & Structured Application Logging
+
+- **Status**: Completed & Verified
+- **Date**: October 2026
+- **Target Repository**: `https://github.com/MrZeroOrez/Enterprise-Knowledge-Copilot.git`
+- **Default Branch**: `main`
+
+### 1. Features Completed
+- [x] **Supported Chat Model Migration**: Replaced deprecated `gemini-2.5-flash` with active, responsive `gemini-3.5-flash` (with `gemini-3.5-flash-lite` and `gemini-3.8-flash` supported in `.env.example`).
+- [x] **Structured Application Logging (`src/logger.py`)**: Implemented centralized logging using `RotatingFileHandler` (max 5 MB, 5 backups) writing to `logs/app.log` and `StreamHandler` for console output.
+- [x] **Credential and Secret Redaction**: Added `SensitiveDataFilter` to prevent API keys (e.g. `AIza...`), Bearer tokens, or environment secrets from being written to logs.
+- [x] **Idempotent Logging Setup**: Handlers are tagged and deduplicated across Streamlit script re-runs.
+- [x] **End-to-End Pipeline Logging**: Instrumented `app.py`, `src/indexing.py`, and `src/rag_pipeline.py` to record indexing events, search queries, chunk counts, model latency, citation validation, and full error tracebacks.
+- [x] **Automated Tests**: Added 7 unit tests in `tests/test_logger.py` covering directory creation, log file writing, idempotence, and secret redaction.
+
+### 2. Files Created or Modified
+- `src/logger.py` — Centralized structured logging and secret redaction filter.
+- `src/config.py` — Updated default chat model and added `DEFAULT_LOG_LEVEL` / `DEFAULT_LOG_FILE`.
+- `src/rag_pipeline.py` — Updated default model to `gemini-3.5-flash` and added detailed pipeline logging.
+- `src/indexing.py` — Added step-by-step indexing logging.
+- `app.py` — Initialized application logging and added structured logging to upload and chat handlers.
+- `.gitignore` — Added `logs/` and `*.log`.
+- `.env.example` — Added logging configuration template and updated supported chat models.
+- `tests/test_logger.py` — 7 new tests for logging and secret masking.
+- `tests/test_config.py` — Added config tests for logging settings.
+- `tests/test_rag_pipeline.py` — Updated model assertions.
+- `tests/test_retrieval.py` — Updated model configuration fixtures.
+- `README.md` — Updated configuration, model options, and logging documentation.
+
+### 3. Tests Executed and Results
+- **Command**: `.\.venv\Scripts\python.exe -m pytest -v`
+- **Result**: **156 passed in 63.56s** (100% pass rate)
+  - `tests/test_chunking.py`: 25 PASSED
+  - `tests/test_config.py`: 19 PASSED
+  - `tests/test_document_loader.py`: 16 PASSED
+  - `tests/test_embeddings.py`: 11 PASSED
+  - `tests/test_evaluation.py`: 16 PASSED
+  - `tests/test_indexing.py`: 6 PASSED
+  - `tests/test_logger.py`: 7 PASSED
+  - `tests/test_rag_pipeline.py`: 21 PASSED
+  - `tests/test_retrieval.py`: 15 PASSED
+  - `tests/test_ui.py`: 13 PASSED
+  - `tests/test_vector_store.py`: 7 PASSED
+- **Live Verification**: Verified live question answering on `sample.pdf` using `gemini-3.5-flash` and verified structured log entries in `logs/app.log`.
+
+### 4. Known Issues and Limitations
+- Standard free-tier rate limits and intermittent server load apply; exponential backoff automatically retries transient errors.
+
+### 5. Next Phase
+- **Phase 7**: Short-term Conversation History and Context Window Management.
+

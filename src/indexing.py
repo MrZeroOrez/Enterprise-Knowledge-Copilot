@@ -121,6 +121,8 @@ def index_document(
     if not source_name:
         source_name = "document.pdf"
 
+    logger.info("Starting document indexing for '%s'", source_name)
+
     # 2. Extract pages using Phase 2 loader
     pages: list[DocumentPage] = extract_text_from_pdf(
         source=actual_source,
@@ -132,6 +134,7 @@ def index_document(
     # 3. Check for empty or non-text document
     total_chars = sum(p.char_count for p in pages)
     if total_chars == 0:
+        logger.warning("Document '%s' contains 0 extractable characters.", source_name)
         return IndexingResult(
             source=source_name,
             pages_processed=len(pages),
@@ -148,6 +151,7 @@ def index_document(
         overlap=c_overlap,
         deduplicate=False,
     )
+    logger.info("Extracted %d pages, created %d chunks for '%s'", len(pages), len(chunks), source_name)
 
     if not chunks:
         return IndexingResult(
@@ -171,6 +175,7 @@ def index_document(
         first_meta = existing_records[0].get("metadata", {})
         existing_hash = first_meta.get("doc_hash")
         if existing_hash == doc_hash and len(existing_records) == len(chunks):
+            logger.info("Document '%s' is unchanged; skipping re-indexing", source_name)
             return IndexingResult(
                 source=source_name,
                 pages_processed=len(pages),
@@ -184,6 +189,7 @@ def index_document(
     # We generate ALL embeddings before modifying the database. If embedding fails
     # halfway, the database remains completely untouched, preserving existing index!
     chunk_texts = [chunk.text for chunk in chunks]
+    logger.info("Generating embeddings for %d chunks of '%s'", len(chunk_texts), source_name)
     embeddings = embed_texts(
         texts=chunk_texts,
         task_type="RETRIEVAL_DOCUMENT",
@@ -195,6 +201,7 @@ def index_document(
     # 7. Safe replacement: remove old version of this document only
     is_replacement = len(existing_records) > 0
     if is_replacement:
+        logger.info("Replacing existing index records for '%s'", source_name)
         delete_chunks_by_source(
             source=source_name,
             collection_name=collection_name,
@@ -212,6 +219,7 @@ def index_document(
 
     status = "replaced" if is_replacement else "indexed"
     action_text = "replaced and re-indexed" if is_replacement else "successfully indexed"
+    logger.info("Indexing completed for '%s': %d chunks indexed (status=%s)", source_name, indexed_count, status)
 
     return IndexingResult(
         source=source_name,

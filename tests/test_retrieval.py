@@ -58,7 +58,7 @@ class TestRetrievalValidation:
         """top_k exceeding retrieval_max_top_k must raise ValueError."""
         cfg = AppConfig(
             gemini_api_key="mock",
-            chat_model="gemini-2.5-flash",
+            chat_model="gemini-3.5-flash",
             embedding_model="text-embedding-004",
             chunk_size=1000,
             chunk_overlap=200,
@@ -247,7 +247,7 @@ class TestRetrievalExecution:
         """When top_k is None, it should use config.retrieval_top_k."""
         cfg = AppConfig(
             gemini_api_key="mock",
-            chat_model="gemini-2.5-flash",
+            chat_model="gemini-3.5-flash",
             embedding_model="text-embedding-004",
             chunk_size=1000,
             chunk_overlap=200,

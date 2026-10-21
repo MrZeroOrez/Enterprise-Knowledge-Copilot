@@ -13,7 +13,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Default constants (fallback values when not specified in environment)
-DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
+DEFAULT_CHAT_MODEL = "gemini-3.5-flash"
 DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
@@ -24,6 +24,8 @@ DEFAULT_MAX_UPLOAD_SIZE_MB = 10
 DEFAULT_RETRIEVAL_TOP_K = 5
 DEFAULT_RETRIEVAL_MAX_TOP_K = 50
 DEFAULT_RAG_MAX_CONTEXT_CHARS = 20000
+DEFAULT_LOG_LEVEL = "INFO"
+DEFAULT_LOG_FILE = "logs/app.log"
 
 PLACEHOLDER_API_KEY = "your_gemini_api_key_here"
 
@@ -45,6 +47,8 @@ class AppConfig:
     retrieval_max_top_k: int = DEFAULT_RETRIEVAL_MAX_TOP_K
     retrieval_distance_threshold: float | None = None
     rag_max_context_chars: int = DEFAULT_RAG_MAX_CONTEXT_CHARS
+    log_level: str = DEFAULT_LOG_LEVEL
+    log_file: str = DEFAULT_LOG_FILE
 
     @property
     def max_upload_size_bytes(self) -> int:
@@ -80,7 +84,7 @@ class AppConfig:
         if not self.chat_model or not self.chat_model.strip():
             raise ValueError(
                 "GEMINI_CHAT_MODEL cannot be empty. Please configure a supported model "
-                "such as 'gemini-2.5-flash' in your .env file."
+                "such as 'gemini-3.5-flash' in your .env file."
             )
 
     def validate_embedding_model(self) -> None:
@@ -278,6 +282,9 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
             f"RAG_MAX_CONTEXT_CHARS must be a valid integer, got: '{rag_max_context_chars_raw}'"
         ) from exc
 
+    log_level = os.getenv("LOG_LEVEL", DEFAULT_LOG_LEVEL).strip().upper()
+    log_file = os.getenv("LOG_FILE", DEFAULT_LOG_FILE).strip()
+
     config = AppConfig(
         gemini_api_key=gemini_api_key,
         chat_model=chat_model,
@@ -292,6 +299,8 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
         retrieval_max_top_k=retrieval_max_top_k,
         retrieval_distance_threshold=retrieval_distance_threshold,
         rag_max_context_chars=rag_max_context_chars,
+        log_level=log_level,
+        log_file=log_file,
     )
 
     # Validate non-API parameters on load to fail-fast on malformed settings

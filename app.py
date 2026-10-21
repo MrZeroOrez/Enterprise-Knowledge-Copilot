@@ -22,6 +22,7 @@ from src.document_loader import (
 )
 from src.embeddings import EmbeddingError, EmbeddingRateLimitError
 from src.indexing import index_document
+from src.logger import get_logger, setup_logging
 from src.rag_pipeline import (
     INSUFFICIENT_EVIDENCE_MESSAGE,
     RAGGenerationError,
@@ -30,7 +31,7 @@ from src.rag_pipeline import (
 )
 from src.vector_store import get_collection_stats, list_indexed_documents
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ==============================================================================
@@ -97,6 +98,7 @@ def handle_document_upload(
         return results
 
     app_config = config or load_config()
+    logger.info("Batch document upload started for %d file(s)", len(files))
 
     for file_obj in files:
         fname = getattr(file_obj, "name", "uploaded.pdf")
@@ -112,6 +114,14 @@ def handle_document_upload(
                 config=app_config,
             )
 
+            logger.info(
+                "Document '%s' processed (pages=%d, chunks=%d, status=%s)",
+                fname,
+                result.pages_processed,
+                result.chunks_indexed,
+                result.status,
+            )
+
             results.append({
                 "filename": fname,
                 "status": result.status,
@@ -121,6 +131,7 @@ def handle_document_upload(
             })
 
         except (FileValidationError, ScannedPdfError, EncryptedPdfError, CorruptPdfError) as exc:
+            logger.warning("Validation/extraction failed for '%s': %s", fname, exc)
             results.append({
                 "filename": fname,
                 "status": "error",
@@ -129,6 +140,7 @@ def handle_document_upload(
                 "error": str(exc),
             })
         except (EmbeddingRateLimitError, RAGRateLimitError) as exc:
+            logger.warning("API rate limit exceeded during indexing '%s': %s", fname, exc)
             results.append({
                 "filename": fname,
                 "status": "error",
@@ -137,7 +149,7 @@ def handle_document_upload(
                 "error": f"Gemini API rate limit exceeded: {exc}",
             })
         except Exception as exc:
-            logger.error("Failed to index %s: %s", fname, exc, exc_info=True)
+            logger.error("Failed to index '%s': %s", fname, exc, exc_info=True)
             results.append({
                 "filename": fname,
                 "status": "error",
@@ -179,17 +191,26 @@ def handle_chat_query(
         }
 
     app_config = config or load_config()
+    logger.info("Handling chat query: '%s' (filter=%s)", clean_q[:80], source_filter)
 
     try:
-        return answer_question(
+        result = answer_question(
             question=clean_q,
             source_filter=source_filter,
             collection_name=collection_name or app_config.chroma_collection_name,
             persist_dir=persist_dir or app_config.chroma_persist_dir,
             config=app_config,
         )
+        logger.info(
+            "Chat response produced: status=%s, citations=%d, retrieved_chunks=%d",
+            result.get("status"),
+            len(result.get("citations", [])),
+            result.get("retrieved_chunks", 0),
+        )
+        return result
 
     except (RAGRateLimitError, EmbeddingRateLimitError) as exc:
+        logger.warning("Gemini rate limit exceeded for query '%s': %s", clean_q[:80], exc)
         return {
             "answer": (
                 "The Gemini API rate limit or quota was exceeded. "
@@ -199,19 +220,21 @@ def handle_chat_query(
             "status": "error",
         }
     except ValueError as exc:
+        logger.warning("Validation error for query '%s': %s", clean_q[:80], exc)
         return {
             "answer": f"Configuration error: {exc}",
             "citations": [],
             "status": "error",
         }
     except (RAGGenerationError, EmbeddingError) as exc:
+        logger.error("Generation error for query '%s': %s", clean_q[:80], exc, exc_info=True)
         return {
             "answer": f"Could not generate an answer: {exc}",
             "citations": [],
             "status": "error",
         }
     except Exception as exc:
-        logger.error("Unexpected error in chat query: %s", exc, exc_info=True)
+        logger.error("Unexpected error in chat query '%s': %s", clean_q[:80], exc, exc_info=True)
         return {
             "answer": f"An unexpected error occurred: {exc}",
             "citations": [],
@@ -339,6 +362,9 @@ def main() -> None:
     except Exception as exc:
         st.error(f"Configuration Error: {exc}")
         st.stop()
+
+    # Configure application structured logging
+    setup_logging(log_level=config.log_level, log_file=config.log_file)
 
     # Header section
     st.title("🤖 Enterprise Knowledge Copilot")

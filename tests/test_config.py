@@ -43,6 +43,8 @@ class TestAppConfig:
         assert config.max_upload_size_mb == 10
         assert config.max_upload_size_bytes == 10 * 1024 * 1024
         assert config.rag_max_context_chars == DEFAULT_RAG_MAX_CONTEXT_CHARS
+        assert config.log_level == "INFO"
+        assert config.log_file == "logs/app.log"
         assert config.upload_dir == Path("data/uploads")
         assert config.chroma_persist_dir == Path("data/chromadb")
         assert config.chroma_collection_name == "enterprise_documents"
@@ -58,6 +60,8 @@ class TestAppConfig:
         monkeypatch.setenv("CHUNK_OVERLAP", "150")
         monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "25")
         monkeypatch.setenv("CHROMA_COLLECTION_NAME", "custom_docs")
+        monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+        monkeypatch.setenv("LOG_FILE", "logs/custom.log")
 
         config = load_config()
 
@@ -69,6 +73,8 @@ class TestAppConfig:
         assert config.max_upload_size_mb == 25
         assert config.max_upload_size_bytes == 25 * 1024 * 1024
         assert config.chroma_collection_name == "custom_docs"
+        assert config.log_level == "DEBUG"
+        assert config.log_file == "logs/custom.log"
         assert config.is_api_key_set()
 
     def test_environment_variable_aliases(self, monkeypatch, tmp_path):

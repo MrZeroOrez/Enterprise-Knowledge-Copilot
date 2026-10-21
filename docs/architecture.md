@@ -185,6 +185,12 @@ To maintain transparency and engineering rigor, the table below highlights exact
 - **Safe Citation Presentation**: Automatically renders formatted source citations (`[filename, p. N]`) beneath assistant answers.
 - **Isolated Clear-Chat Action**: Allows resetting active conversation messages without deleting uploaded documents or altering ChromaDB indices.
 
+### 4.7 Structured Application Logging (`src/logger.py`)
+- **Dual Destination**: Writes human-readable timestamps and levels to the console and structured rotation records to disk (`logs/app.log`).
+- **File Rotation**: Enforces maximum size bounds (5 MB per file, 5 backups) to prevent disk exhaustion.
+- **Secret & Credential Redaction (`SensitiveDataFilter`)**: Intercepts all log records and scrubs Gemini API keys (`AIza...`), Bearer tokens, and environment secrets prior to writing.
+- **Streamlit Idempotence**: Prevents duplicate log handlers when Streamlit reruns scripts on UI interactions.
+
 ---
 
 ## 5. Security and Operational Guidelines

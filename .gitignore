@@ -33,6 +33,10 @@ coverage.xml
 data/uploads/*
 !data/uploads/.gitkeep
 
+# Application Logs
+logs/
+*.log
+
 # ChromaDB persistent local storage
 data/chromadb/
 data/chroma_db/

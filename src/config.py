@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 # Default constants (fallback values when not specified in environment)
 DEFAULT_CHAT_MODEL = "gemini-2.5-flash"
-DEFAULT_EMBEDDING_MODEL = "text-embedding-004"
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
 DEFAULT_UPLOAD_DIR = "data/uploads"

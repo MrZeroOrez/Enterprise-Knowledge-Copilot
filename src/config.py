@@ -19,6 +19,7 @@ DEFAULT_CHUNK_SIZE = 1000
 DEFAULT_CHUNK_OVERLAP = 200
 DEFAULT_UPLOAD_DIR = "data/uploads"
 DEFAULT_CHROMA_DIR = "data/chromadb"
+DEFAULT_MAX_UPLOAD_SIZE_MB = 10
 
 PLACEHOLDER_API_KEY = "your_gemini_api_key_here"
 
@@ -34,6 +35,12 @@ class AppConfig:
     chunk_overlap: int
     upload_dir: Path
     chroma_persist_dir: Path
+    max_upload_size_mb: int = DEFAULT_MAX_UPLOAD_SIZE_MB
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        """Return maximum upload size in bytes."""
+        return self.max_upload_size_mb * 1024 * 1024
 
     def validate_api_key(self) -> None:
         """Validate that the Gemini API key is configured and not a placeholder.
@@ -75,6 +82,17 @@ class AppConfig:
                 f"CHUNK_SIZE ({self.chunk_size})."
             )
 
+    def validate_upload_params(self) -> None:
+        """Validate upload parameters.
+
+        Raises:
+            ValueError: If max_upload_size_mb <= 0.
+        """
+        if self.max_upload_size_mb <= 0:
+            raise ValueError(
+                f"MAX_UPLOAD_SIZE_MB must be a positive integer (> 0), got: {self.max_upload_size_mb}"
+            )
+
     def is_api_key_set(self) -> bool:
         """Check if an API key is set without exposing the key value."""
         return bool(
@@ -93,6 +111,7 @@ class AppConfig:
             f"embedding_model='{self.embedding_model}', "
             f"chunk_size={self.chunk_size}, "
             f"chunk_overlap={self.chunk_overlap}, "
+            f"max_upload_size_mb={self.max_upload_size_mb}, "
             f"upload_dir='{self.upload_dir}', "
             f"chroma_persist_dir='{self.chroma_persist_dir}')"
         )
@@ -139,6 +158,14 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
     upload_dir = Path(os.getenv("UPLOAD_DIR", DEFAULT_UPLOAD_DIR))
     chroma_dir = Path(os.getenv("CHROMA_PERSIST_DIRECTORY", DEFAULT_CHROMA_DIR))
 
+    max_upload_size_raw = os.getenv("MAX_UPLOAD_SIZE_MB", str(DEFAULT_MAX_UPLOAD_SIZE_MB))
+    try:
+        max_upload_size_mb = int(max_upload_size_raw)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            f"MAX_UPLOAD_SIZE_MB must be a valid integer, got: '{max_upload_size_raw}'"
+        ) from exc
+
     config = AppConfig(
         gemini_api_key=gemini_api_key,
         chat_model=chat_model,
@@ -147,9 +174,11 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
         chunk_overlap=chunk_overlap,
         upload_dir=upload_dir,
         chroma_persist_dir=chroma_dir,
+        max_upload_size_mb=max_upload_size_mb,
     )
 
     # Validate non-API parameters on load to fail-fast on malformed settings
     config.validate_chunking_params()
+    config.validate_upload_params()
 
     return config

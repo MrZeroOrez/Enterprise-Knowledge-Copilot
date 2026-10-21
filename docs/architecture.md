@@ -1,7 +1,7 @@
 # Enterprise Knowledge Copilot — Architecture & System Design
 
 > **Document Status**: Active / Phased Architecture Plan  
-> **Current Version**: Phase 1 Foundation  
+> **Current Version**: Phase 2 Verified (PDF Processing & Document Preparation)  
 > **Last Updated**: October 2026  
 
 ---
@@ -11,6 +11,23 @@
 **Enterprise Knowledge Copilot** is a production-minded document assistant designed to let users upload enterprise documents (PDFs), ask questions about their content, and receive accurate, grounded answers accompanied by verifiable source citations (filename and page numbers).
 
 The system is designed to run efficiently on resource-constrained environments (limited RAM, minimal disk consumption) by relying on lightweight local components and free-tier cloud APIs (Google Gemini) rather than heavy local LLM runtimes.
+
+---
+
+## 2. Document Processing Pipeline (Phase 2 Flow)
+
+Phase 2 establishes the end-to-end document preparation workflow prior to vector embedding:
+
+```mermaid
+flowchart LR
+    PDFInput["PDF Upload (Bytes / File)"] --> Validation["Validation (Signature, Size, Encryption)"]
+    Validation --> SafeStorage["Safe Storage (Sanitized UUID in data/uploads/)"]
+    SafeStorage --> Extraction["Page Extraction (pypdf + Whitespace Normalization)"]
+    Extraction --> ScannedCheck{"Extractable Text?"}
+    ScannedCheck -->|No (0 chars)| ScannedError["ScannedPdfError (OCR Not Implemented)"]
+    ScannedCheck -->|Yes| Chunker["Page-Bounded Chunker (chunk_pages)"]
+    Chunker --> Output["Metadata-Preserving Chunks (source, page, chunk_id)"]
+```
 
 ---
 
@@ -77,8 +94,9 @@ To maintain transparency and engineering rigor, the table below highlights exact
 | **Directory Structure & Config** | **Implemented** | Phase 1 | Phase 1 |
 | **Deterministic Chunking & Tests** | **Implemented** | Phase 1 | Phase 1 |
 | **PDF Extraction (`pypdf`)** | **Implemented** | Phase 1 | Phase 1 |
-| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1 | Phase 1 |
-| **PDF Upload Validation & UI** | Planned | — | Phase 2 |
+| **PDF Upload Validation & Storage** | **Implemented** | Phase 2 | Phase 2 |
+| **Scanned Document Detection** | **Implemented** | Phase 2 | Phase 2 |
+| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1 & 2 | Phase 1 & 2 |
 | **Gemini Embeddings Integration** | Planned | — | Phase 3 |
 | **ChromaDB Vector Store** | Planned | — | Phase 3 |
 | **Semantic Retrieval (Top-k)** | Planned | — | Phase 4 |

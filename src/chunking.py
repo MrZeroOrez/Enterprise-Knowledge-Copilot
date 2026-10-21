@@ -1,34 +1,82 @@
 """Deterministic text-chunking module for Enterprise Knowledge Copilot.
 
-Splits document text into overlapping chunks with preserved metadata (page number,
-source filename, character offsets) for grounded RAG retrieval and citation.
+Splits document pages into discrete, overlapping chunks while strictly preserving
+page boundaries, citation metadata (page number, source filename), and stable IDs
+for grounded RAG retrieval and citation.
 """
 
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.document_loader import DocumentPage
 
 
-@dataclass(frozen=True)
 class DocumentChunk:
     """Represents a discrete text chunk extracted from a document with citation metadata."""
 
-    chunk_id: str
-    text: str
-    page_number: int
-    source_filename: str
-    chunk_index: int
-    metadata: dict = field(default_factory=dict)
+    def __init__(
+        self,
+        chunk_id: str,
+        text: str,
+        page_number: int,
+        source_filename: str,
+        chunk_index: int,
+        metadata: dict | None = None,
+    ) -> None:
+        self.chunk_id = chunk_id
+        self.text = text
+        self.page_number = page_number
+        self.source_filename = source_filename
+        self.chunk_index = chunk_index
+        self.metadata = metadata or {}
+
+    @property
+    def source(self) -> str:
+        """Alias for source_filename."""
+        return self.source_filename
+
+    @property
+    def page(self) -> int:
+        """Alias for page_number."""
+        return self.page_number
 
     @property
     def char_count(self) -> int:
         """Return the character count of this chunk."""
         return len(self.text)
+
+    def to_dict(self) -> dict:
+        """Export chunk data as a dictionary compatible with downstream RAG pipelines."""
+        return {
+            "chunk_id": self.chunk_id,
+            "source": self.source_filename,
+            "page": self.page_number,
+            "text": self.text,
+            "metadata": self.metadata,
+        }
+
+    def __repr__(self) -> str:
+        snippet = self.text[:40].replace("\n", " ") + "..." if len(self.text) > 40 else self.text
+        return (
+            f"DocumentChunk(id='{self.chunk_id}', page={self.page_number}, "
+            f"source='{self.source_filename}', chars={self.char_count}, preview='{snippet}')"
+        )
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, DocumentChunk):
+            return False
+        return (
+            self.chunk_id == other.chunk_id
+            and self.text == other.text
+            and self.page_number == other.page_number
+            and self.source_filename == other.source_filename
+            and self.chunk_index == other.chunk_index
+            and self.metadata == other.metadata
+        )
 
 
 def validate_chunk_params(chunk_size: int, chunk_overlap: int) -> None:
@@ -60,11 +108,19 @@ def validate_chunk_params(chunk_size: int, chunk_overlap: int) -> None:
         )
 
 
-def _compute_chunk_id(source_filename: str, page_number: int, chunk_index: int, text: str) -> str:
-    """Generate a deterministic, unique identifier for a document chunk."""
+def compute_stable_chunk_id(source_filename: str, page_number: int, chunk_index: int, text: str) -> str:
+    """Generate a deterministic, stable unique identifier for a document chunk.
+
+    Format: <safe_name>_p<page>_c<index>_<hash>
+    Avoids embedding sensitive document contents in identifier strings.
+    """
     content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:10]
-    safe_name = source_filename.replace(" ", "_") if source_filename else "doc"
+    safe_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", source_filename) if source_filename else "doc"
     return f"{safe_name}_p{page_number}_c{chunk_index}_{content_hash}"
+
+
+# Backwards compatibility alias
+_compute_chunk_id = compute_stable_chunk_id
 
 
 def chunk_text(
@@ -76,12 +132,15 @@ def chunk_text(
 ) -> list[DocumentChunk]:
     """Deterministically split raw text into overlapping DocumentChunk objects.
 
+    Guaranteed to terminate without infinite loops.
+    Omits empty or whitespace-only chunks.
+
     Args:
         text: The raw text string to split.
         chunk_size: Maximum character count per chunk.
         chunk_overlap: Number of characters to overlap between consecutive chunks.
-        page_number: Page number from which this text originated (for citations).
-        source_filename: Originating document filename (for citations).
+        page_number: Originating page number (1-indexed).
+        source_filename: Originating document filename.
 
     Returns:
         List of DocumentChunk instances. Returns empty list if text is empty or whitespace.
@@ -94,11 +153,11 @@ def chunk_text(
     if not text or not text.strip():
         return []
 
-    # Clean text: normalize carriage returns
-    normalized_text = text.replace("\r\n", "\n")
+    # Normalize carriage returns
+    normalized_text = text.replace("\r\n", "\n").replace("\r", "\n")
     text_length = len(normalized_text)
 
-    # Step size is the distance the window moves forward on each step
+    # Step size is guaranteed to be >= 1 because chunk_overlap < chunk_size
     step_size = chunk_size - chunk_overlap
 
     chunks: list[DocumentChunk] = []
@@ -111,7 +170,7 @@ def chunk_text(
 
         # Only create chunk if it contains non-whitespace content
         if chunk_content.strip():
-            chunk_id = _compute_chunk_id(
+            chunk_id = compute_stable_chunk_id(
                 source_filename=source_filename,
                 page_number=page_number,
                 chunk_index=chunk_idx,
@@ -125,7 +184,9 @@ def chunk_text(
                 source_filename=source_filename,
                 chunk_index=chunk_idx,
                 metadata={
+                    "source": source_filename,
                     "source_filename": source_filename,
+                    "page": page_number,
                     "page_number": page_number,
                     "chunk_index": chunk_idx,
                     "char_start": start_idx,
@@ -136,7 +197,7 @@ def chunk_text(
             chunks.append(chunk)
             chunk_idx += 1
 
-        # If this chunk reached or exceeded the end of the text, stop
+        # Break when end of text is reached
         if end_idx >= text_length:
             break
 
@@ -145,36 +206,43 @@ def chunk_text(
     return chunks
 
 
-def chunk_document_pages(
+def chunk_pages(
     pages: list[DocumentPage],
     chunk_size: int = 1000,
-    chunk_overlap: int = 200,
+    overlap: int = 150,
+    chunk_overlap: int | None = None,
     deduplicate: bool = False,
 ) -> list[DocumentChunk]:
-    """Chunk a sequence of DocumentPages (e.g. from load_pdf), preserving page citations.
+    """Chunk extracted document pages while preserving page boundaries and citation metadata.
+
+    A single chunk is strictly confined to a single page; it never crosses page boundaries,
+    ensuring unambiguous citation in downstream RAG generation.
 
     Args:
         pages: List of DocumentPage objects from document_loader.
-        chunk_size: Character length of each chunk.
-        chunk_overlap: Overlapping characters between consecutive chunks.
+        chunk_size: Maximum character count per chunk (default: 1000).
+        overlap: Overlap in characters between consecutive chunks (default: 150).
+        chunk_overlap: Optional alias for overlap for backward compatibility.
         deduplicate: When True, prevents embedding exact duplicate chunk contents.
 
     Returns:
         List of DocumentChunk objects across all provided pages.
     """
-    validate_chunk_params(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    effective_overlap = chunk_overlap if chunk_overlap is not None else overlap
+    validate_chunk_params(chunk_size=chunk_size, chunk_overlap=effective_overlap)
 
     all_chunks: list[DocumentChunk] = []
     seen_hashes: set[str] = set()
 
     for page in pages:
+        # Skip empty or whitespace-only pages
         if page.is_empty:
             continue
 
         page_chunks = chunk_text(
             text=page.text,
             chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            chunk_overlap=effective_overlap,
             page_number=page.page_number,
             source_filename=page.source_filename,
         )
@@ -189,3 +257,7 @@ def chunk_document_pages(
             all_chunks.append(chunk)
 
     return all_chunks
+
+
+# Backward-compatible alias
+chunk_document_pages = chunk_pages

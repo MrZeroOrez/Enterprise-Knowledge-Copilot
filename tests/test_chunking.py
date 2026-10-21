@@ -1,9 +1,11 @@
-"""Unit tests for the chunking module."""
+"""Comprehensive unit tests for the chunking module (Phase 2)."""
 
 import pytest
+
 from src.chunking import (
     DocumentChunk,
     chunk_document_pages,
+    chunk_pages,
     chunk_text,
     validate_chunk_params,
 )
@@ -110,10 +112,12 @@ class TestChunkText:
         assert len(chunks) > 1
         for idx, chunk in enumerate(chunks):
             assert chunk.page_number == 4
+            assert chunk.page == 4
             assert chunk.source_filename == "hr_benefits.pdf"
+            assert chunk.source == "hr_benefits.pdf"
             assert chunk.chunk_index == idx
-            assert chunk.metadata["source_filename"] == "hr_benefits.pdf"
-            assert chunk.metadata["page_number"] == 4
+            assert chunk.metadata["source"] == "hr_benefits.pdf"
+            assert chunk.metadata["page"] == 4
             assert "char_start" in chunk.metadata
             assert "char_end" in chunk.metadata
             assert chunk.chunk_id.startswith("hr_benefits.pdf_p4_c")
@@ -130,25 +134,61 @@ class TestChunkText:
             assert c1.text == c2.text
             assert c1.metadata == c2.metadata
 
+    def test_chunk_to_dict_export(self):
+        """DocumentChunk.to_dict should export standard fields for downstream indexing."""
+        chunk = DocumentChunk(
+            chunk_id="policy_p1_c0_abc123",
+            text="Remote work policy guidelines.",
+            page_number=1,
+            source_filename="policy.pdf",
+            chunk_index=0,
+            metadata={"source": "policy.pdf", "page": 1},
+        )
+        data = chunk.to_dict()
+        assert data["chunk_id"] == "policy_p1_c0_abc123"
+        assert data["source"] == "policy.pdf"
+        assert data["page"] == 1
+        assert data["text"] == "Remote work policy guidelines."
 
-class TestChunkDocumentPages:
-    """Tests for multi-page document chunking."""
+
+class TestChunkPages:
+    """Tests for multi-page document chunking with chunk_pages."""
 
     def test_chunking_multiple_pages(self):
-        """Should aggregate chunks across multiple DocumentPages while preserving page numbers."""
+        """Should aggregate chunks across multiple DocumentPages while preserving page boundaries."""
         pages = [
             DocumentPage(text="Page one corporate strategy notes.", page_number=1, source_filename="doc.pdf"),
             DocumentPage(text="", page_number=2, source_filename="doc.pdf"),  # Empty page
             DocumentPage(text="Page three quarterly financial figures.", page_number=3, source_filename="doc.pdf"),
         ]
 
-        chunks = chunk_document_pages(pages, chunk_size=20, chunk_overlap=5)
+        chunks = chunk_pages(pages, chunk_size=20, overlap=5)
 
         # Page 2 was empty, so no chunks from page 2 should exist
         page_numbers_in_chunks = {chunk.page_number for chunk in chunks}
         assert 1 in page_numbers_in_chunks
         assert 3 in page_numbers_in_chunks
         assert 2 not in page_numbers_in_chunks
+
+        # Verify page boundary preservation: each chunk has exactly 1 page citation
+        for chunk in chunks:
+            assert chunk.source == "doc.pdf"
+            assert chunk.page in (1, 3)
+
+    def test_chunk_pages_preserves_page_boundaries_strictly(self):
+        """Chunks from different pages must never merge into a single ambiguous chunk."""
+        pages = [
+            DocumentPage(text="Short end of section.", page_number=1, source_filename="handbook.pdf"),
+            DocumentPage(text="Start of new chapter.", page_number=2, source_filename="handbook.pdf"),
+        ]
+
+        chunks = chunk_pages(pages, chunk_size=1000, overlap=100)
+
+        assert len(chunks) == 2
+        assert chunks[0].page == 1
+        assert chunks[0].text == "Short end of section."
+        assert chunks[1].page == 2
+        assert chunks[1].text == "Start of new chapter."
 
     def test_deduplication(self):
         """Should filter out exact duplicate chunks when deduplicate=True."""
@@ -158,8 +198,12 @@ class TestChunkDocumentPages:
             DocumentPage(text=repeated_footer, page_number=2, source_filename="doc.pdf"),
         ]
 
-        chunks_deduped = chunk_document_pages(pages, chunk_size=100, chunk_overlap=10, deduplicate=True)
-        chunks_with_dups = chunk_document_pages(pages, chunk_size=100, chunk_overlap=10, deduplicate=False)
+        chunks_deduped = chunk_pages(pages, chunk_size=100, overlap=10, deduplicate=True)
+        chunks_with_dups = chunk_pages(pages, chunk_size=100, overlap=10, deduplicate=False)
 
         assert len(chunks_deduped) == 1
         assert len(chunks_with_dups) == 2
+
+    def test_empty_pages_list(self):
+        """Empty list of pages should return an empty list of chunks."""
+        assert chunk_pages([]) == []

@@ -57,4 +57,53 @@ This document tracks the incremental implementation progress, test verification 
 - User interface and REST endpoints are planned for Phase 6 and Phase 8.
 
 ### 5. Next Phase
-- **Phase 2**: PDF upload and document extraction validation (handling synthetic and real enterprise document edge cases, multi-column layouts, and extraction diagnostics).
+- **Phase 2**: PDF upload and document extraction validation (Completed).
+
+---
+
+## Phase 2 — PDF Processing and Document Preparation
+
+- **Status**: Completed & Verified
+- **Date**: October 2026
+- **Target Repository**: `https://github.com/MrZeroOrez/Enterprise-Knowledge-Copilot.git`
+- **Default Branch**: `main`
+
+### 1. Features Completed
+- [x] **PDF Validation**: Implemented strict checking of file size (configurable max upload size, default 10 MB), binary signature (`%PDF-` magic bytes), and page count.
+- [x] **Safe Storage Pipeline (`save_uploaded_pdf`)**: Persists uploads safely into `data/uploads/` using UUID-prefixed collision-free filenames, sanitizing filenames to prevent path traversal (`../../`) and overwriting.
+- [x] **Input Flexibility**: Accepts both raw `bytes` and file-like objects (e.g., `io.BytesIO`, Streamlit `UploadedFile`).
+- [x] **Password/Encryption Handling**: Detects encrypted or password-protected PDFs and raises a clear `EncryptedPdfError` explaining they are unsupported.
+- [x] **Scanned Document Detection**: Detects documents containing 0 extractable characters across all pages and raises `ScannedPdfError` explicitly reporting that OCR is not implemented yet.
+- [x] **Whitespace Normalization**: Preserves paragraph breaks (`\n\n`) while collapsing null bytes, carriage returns, and excessive spaces/newlines.
+- [x] **Page Citation Preservation**: Preserves 1-indexed `page_number` (`page`) and original filename (`source`) across both extracted pages (`DocumentPage`) and chunked records (`DocumentChunk`).
+- [x] **Strict Page Boundary Preservation**: `chunk_pages()` chunks each page independently, ensuring chunks never merge content across page boundaries to avoid ambiguous citations.
+- [x] **Custom Error Hierarchy**: Built clean exceptions (`DocumentProcessingError`, `FileValidationError`, `EncryptedPdfError`, `ScannedPdfError`, `CorruptPdfError`) providing actionable user-facing messages.
+- [x] **Automated Synthetic Testing**: Created an offline Type 1 font PDF builder (`make_synthetic_pdf`) that tests multi-page text extraction, whitespace normalization, corrupted bytes, empty files, size limits, and encryption without private files or internet access.
+
+### 2. Files Created or Modified
+- `src/config.py` — Added `MAX_UPLOAD_SIZE_MB`, `max_upload_size_bytes`, and validation.
+- `src/document_loader.py` — Added `FileValidationError`, `EncryptedPdfError`, `ScannedPdfError`, `CorruptPdfError`, `validate_pdf_bytes`, `sanitize_filename`, `save_uploaded_pdf`, `normalize_whitespace`, `extract_text_from_pdf`, and metadata properties.
+- `src/chunking.py` — Added `chunk_pages()` interface, metadata aliases (`source`, `page`), dictionary export (`to_dict()`), and boundary preservation.
+- `tests/test_config.py` — Added upload size configuration tests (10 tests total).
+- `tests/test_document_loader.py` — Comprehensive suite covering all PDF edge cases (15 tests total).
+- `tests/test_chunking.py` — Multi-page boundary, overlap, and dictionary export tests (25 tests total).
+- `.env.example` — Added `MAX_UPLOAD_SIZE_MB=10`.
+- `.gitignore` — Explicitly added `data/chroma_db/` and `*.pyc`.
+- `docs/architecture.md` — Updated pipeline diagram and component status table.
+- `docs/PROJECT_PROGRESS.md` — Documented Phase 2 progress (this file).
+- `README.md` — Updated with Phase 2 capabilities, file size limits, and test instructions.
+
+### 3. Tests Executed and Results
+- **Command**: `.\.venv\Scripts\python.exe -m pytest -v`
+- **Result**: **50 passed in 1.21s** (100% pass rate)
+  - `tests/test_chunking.py`: 25 PASSED
+  - `tests/test_config.py`: 10 PASSED
+  - `tests/test_document_loader.py`: 15 PASSED
+
+### 4. Known Issues and Limitations
+- **No OCR Support**: Scanned or image-only PDFs do not yield text; the system identifies them and reports that OCR is not yet implemented.
+- **Single-page Chunks**: Chunks are strictly confined within page boundaries to ensure citations are unambiguous. Multi-page spanning chunks are intentionally disallowed.
+- **Future Components**: Embeddings, vector database (ChromaDB), Streamlit UI, and LangGraph workflow will be implemented in upcoming phases.
+
+### 5. Next Phase
+- **Phase 3**: Gemini Embeddings and ChromaDB Indexing (generating vector embeddings with `text-embedding-004` and persisting chunks in local ChromaDB).

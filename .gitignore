@@ -9,6 +9,7 @@ venv.bak/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 
 # Testing and Coverage
@@ -34,6 +35,7 @@ data/uploads/*
 
 # ChromaDB persistent local storage
 data/chromadb/
+data/chroma_db/
 chroma_db/
 *.chroma
 

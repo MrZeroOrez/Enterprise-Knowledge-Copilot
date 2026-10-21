@@ -16,7 +16,7 @@ from src.config import (
 class TestAppConfig:
     """Tests for the AppConfig dataclass and validation methods."""
 
-    def test_default_config_initialization(self, monkeypatch):
+    def test_default_config_initialization(self, monkeypatch, tmp_path):
         """Should load default values safely when environment variables are not set."""
         # Clear any environment variables that might be set on the host system
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
@@ -24,13 +24,19 @@ class TestAppConfig:
         monkeypatch.delenv("GEMINI_EMBEDDING_MODEL", raising=False)
         monkeypatch.delenv("CHUNK_SIZE", raising=False)
         monkeypatch.delenv("CHUNK_OVERLAP", raising=False)
+        monkeypatch.delenv("MAX_UPLOAD_SIZE_MB", raising=False)
 
-        config = load_config()
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        config = load_config(env_path=empty_env)
 
         assert config.chat_model == DEFAULT_CHAT_MODEL
         assert config.embedding_model == DEFAULT_EMBEDDING_MODEL
         assert config.chunk_size == DEFAULT_CHUNK_SIZE
         assert config.chunk_overlap == DEFAULT_CHUNK_OVERLAP
+        assert config.max_upload_size_mb == 10
+        assert config.max_upload_size_bytes == 10 * 1024 * 1024
         assert config.upload_dir == Path("data/uploads")
         assert config.chroma_persist_dir == Path("data/chromadb")
         assert config.gemini_api_key is None
@@ -43,6 +49,7 @@ class TestAppConfig:
         monkeypatch.setenv("GEMINI_EMBEDDING_MODEL", "custom-embed-model")
         monkeypatch.setenv("CHUNK_SIZE", "800")
         monkeypatch.setenv("CHUNK_OVERLAP", "150")
+        monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "25")
 
         config = load_config()
 
@@ -51,7 +58,19 @@ class TestAppConfig:
         assert config.embedding_model == "custom-embed-model"
         assert config.chunk_size == 800
         assert config.chunk_overlap == 150
+        assert config.max_upload_size_mb == 25
+        assert config.max_upload_size_bytes == 25 * 1024 * 1024
         assert config.is_api_key_set()
+
+    def test_invalid_max_upload_size_in_env(self, monkeypatch):
+        """Should raise ValueError when MAX_UPLOAD_SIZE_MB is not integer or is <= 0."""
+        monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "invalid")
+        with pytest.raises(ValueError, match="MAX_UPLOAD_SIZE_MB must be a valid integer"):
+            load_config()
+
+        monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "0")
+        with pytest.raises(ValueError, match="MAX_UPLOAD_SIZE_MB must be a positive integer"):
+            load_config()
 
     def test_invalid_chunk_size_in_env(self, monkeypatch):
         """Should raise ValueError when CHUNK_SIZE cannot be parsed or is <= 0."""

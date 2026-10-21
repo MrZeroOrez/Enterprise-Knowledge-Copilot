@@ -9,10 +9,10 @@ Designed for resource-constrained laptops:
 
 ---
 
-## Current Status: Phase 1 (Foundation Setup)
+## Current Status: Phase 2 (PDF Processing & Document Preparation)
 
 > [!NOTE]  
-> We are currently in **Phase 1**. Only the core foundation, PDF text extraction, deterministic text chunking, configuration validation, and unit test suites are implemented. Future features such as Gemini API embeddings, ChromaDB, Streamlit UI, FastAPI, and LangGraph will be introduced incrementally in upcoming phases.
+> We have completed **Phase 2**. The PDF validation, safe storage, page-level text extraction with whitespace normalization, scanned document detection, and deterministic page-bounded chunking are fully implemented and verified with 50 automated tests. Embeddings, ChromaDB, and UI will be added in upcoming phases.
 
 ---
 
@@ -109,34 +109,49 @@ All tests should pass cleanly!
 
 ---
 
-## What Was Built in Phase 1
+## Implemented Capabilities
 
-1. **Configuration Loader (`src/config.py`)**:
-   - Safe parsing of environment variables.
-   - Strict validation of chunk size and overlap boundaries.
-   - Secret masking (`repr(config)` redacts API keys).
-   - Zero network dependencies for running tests.
+### 1. PDF Validation & Safe Storage (`src/document_loader.py`)
+- **Size Validation**: Rejects files larger than `MAX_UPLOAD_SIZE_MB` (default 10 MB, configurable via environment).
+- **Signature Check**: Verifies the binary `%PDF-` magic header before parsing.
+- **Safe Storage (`save_uploaded_pdf`)**: Saves uploaded documents to `data/uploads/` using sanitized, UUID-prefixed filenames. Fully defends against directory traversal attacks (`../../`) and accidental overwrites.
+- **Input Flexibility**: Directly accepts raw `bytes`, bytearrays, or file-like streams (`io.BytesIO`, Streamlit `UploadedFile`).
+- **Encrypted PDF Handling**: Catches password-protected or encrypted PDFs and raises `EncryptedPdfError`.
 
-2. **PDF Extraction (`src/document_loader.py`)**:
-   - Page-by-page text extraction using `pypdf`.
-   - Normalization of newlines and whitespace.
-   - Preserves citation metadata: page numbers (1-indexed) and source filenames.
-   - Robust error handling for non-PDFs, empty files, and corrupt files.
+### 2. PDF Text Extraction & Scanned Detection (`src/document_loader.py`)
+- **Page-by-Page Extraction**: Extracts text per page using `pypdf`, tracking 1-indexed `page_number` (`page`) and original `source_filename` (`source`).
+- **Whitespace Normalization**: Normalizes line breaks, removes null characters, collapses extra horizontal spacing, and retains double newlines (`\n\n`) for paragraph separation.
+- **Scanned Document Detection**: Detects documents where all pages lack extractable text (e.g. image-only scans) and raises `ScannedPdfError`, explicitly stating that OCR is not yet implemented.
 
-3. **Deterministic Chunking (`src/chunking.py`)**:
-   - Sliding-window text chunking with configurable overlap.
-   - Input validation (e.g., rejects `chunk_overlap >= chunk_size` or negative values).
-   - Generates deterministic, hash-based chunk IDs.
-   - Supports duplicate chunk filtering across repeated headers/footers.
-
-4. **Comprehensive Test Suite (`tests/`)**:
-   - 100% offline unit tests covering configuration, chunking, and PDF loading.
+### 3. Page-Bounded Deterministic Chunking (`src/chunking.py`)
+- **Interface (`chunk_pages`)**: Accepts `pages`, `chunk_size`, `overlap`, and `deduplicate`.
+- **Page Boundary Preservation**: Chunks are strictly confined within their originating page; content from adjacent pages is never merged, ensuring 100% unambiguous source citations.
+- **Stable Identifiers**: Generates deterministic, content-hashed IDs (`<source>_p<page>_c<idx>_<hash>`) without leaking document text.
+- **Dictionary Export**: `chunk.to_dict()` and `page.to_dict()` provide standard dictionaries for downstream RAG consumption.
 
 ---
 
-## Next Up: Phase 2
+## Supported PDF Behavior & File-Size Limits
 
-In **Phase 2**, we will implement:
-- Document upload validation and sanity checks.
-- Document extraction verification with sample enterprise PDFs.
-- Handling of edge cases (multi-column text, scanned pages without OCR, password-protected PDFs).
+- **Default Upload Limit**: 10 MB (configured via `MAX_UPLOAD_SIZE_MB` in `.env`).
+- **Standard Text PDFs**: Fully supported. Text and page citations are accurately preserved.
+- **Multi-Page Documents**: Fully supported. Empty pages within a multi-page document are handled gracefully without aborting extraction.
+- **Password-Protected / Encrypted PDFs**: Rejected with `EncryptedPdfError`.
+- **Scanned / Image-Only PDFs**: Detected and rejected with `ScannedPdfError` explaining that OCR is not implemented.
+
+---
+
+## Known Limitations
+
+- **No OCR Support**: Only digital text embedded in PDFs can be extracted. Optical Character Recognition (OCR) for scanned images is not supported.
+- **No Vector DB or LLM Integration Yet**: Embedding generation and vector search will be implemented in Phase 3.
+
+---
+
+## Next Up: Phase 3
+
+In **Phase 3 (Gemini Embeddings & ChromaDB Indexing)**, we will:
+- Integrate the official `google-genai` Python SDK.
+- Configure Gemini `text-embedding-004` (or configured embedding model).
+- Set up local persistent ChromaDB vector storage under `data/chromadb/`.
+- Index document chunks with metadata and stable IDs for semantic retrieval.

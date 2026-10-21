@@ -166,4 +166,56 @@ This document tracks the incremental implementation progress, test verification 
 - **RAG Generation**: LLM question answering and citations synthesis will be implemented in Phase 5.
 
 ### 5. Next Phase
-- **Phase 4**: Semantic Retrieval and Relevance Checks (relevance threshold filtering, context window formatting, and retrieval diagnostics).
+- **Phase 4**: Semantic Retrieval and Relevance Checks (Completed).
+
+---
+
+## Phase 4 — Semantic Retrieval, Ranking, and Relevance Testing
+
+- **Status**: Completed & Verified
+- **Date**: October 2026
+- **Target Repository**: `https://github.com/MrZeroOrez/Enterprise-Knowledge-Copilot.git`
+- **Default Branch**: `main`
+
+### 1. Features Completed
+- [x] **Configurable & Bounded Top-k**: Added `RETRIEVAL_TOP_K` (default 5) and `RETRIEVAL_MAX_TOP_K` (default 50) in `src/config.py` with boundary checks (`top_k > 0`, `top_k <= max_top_k`, non-boolean).
+- [x] **Cosine Distance Thresholding**: Added `max_distance` / `score_threshold` filtering and `RETRIEVAL_DISTANCE_THRESHOLD` config to suppress irrelevant chunks before prompt injection.
+- [x] **Document Source Filtering**: Added `source_filter` parameter in `search_chunks()` supporting document segregation and multi-document routing via ChromaDB `$and` metadata filters.
+- [x] **Duplicate Chunk Suppression**: Handled edge cases where vector queries return duplicate chunks, ensuring each chunk ID appears at most once in retrieved results.
+- [x] **Context Window Formatting (`format_retrieval_context`)**: Implemented clean markdown formatting of retrieved chunks with source filenames, 1-indexed pages, and passage IDs for downstream Phase 5 prompt building.
+- [x] **Retrieval Evaluation Metrics (`src/evaluation.py`)**: Implemented offline calculation of Recall@k, Precision@k, Reciprocal Rank (RR), and Mean Reciprocal Rank (MRR), with graceful handling of unanswerable queries.
+- [x] **Synthetic Evaluation Benchmark (`tests/fixtures/eval_dataset.json`)**: Built a 12-query benchmark covering exact match, paraphrase, cross-page facts, multi-document routing, and unanswerable queries.
+- [x] **Comprehensive Test Suite**: Added 30 new unit tests (109 tests total across 8 test modules) covering retrieval boundaries, thresholding, source filtering, context formatting, evaluation formulas, and end-to-end ChromaDB evaluation.
+
+### 2. Files Created or Modified
+- `src/config.py` — Added retrieval configuration parameters (`retrieval_top_k`, `retrieval_max_top_k`, `retrieval_distance_threshold`) and validation.
+- `src/retrieval.py` — Implemented bounded top-k, distance filtering, source filtering, duplicate suppression, and `format_retrieval_context()`.
+- `src/evaluation.py` — Implemented `EvaluationResult`, `EvaluationSummary`, `compute_recall_at_k()`, `compute_precision_at_k()`, `compute_reciprocal_rank()`, `load_eval_dataset()`, and `evaluate_retrieval()`.
+- `tests/fixtures/eval_dataset.json` — 12 synthetic evaluation test cases.
+- `tests/test_config.py` — Added 4 new tests for retrieval configuration and bounds (15 tests total).
+- `tests/test_retrieval.py` — Added 9 new tests for validation, source filter, distance thresholds, and context formatting (15 tests total).
+- `tests/test_evaluation.py` — 16 new tests for evaluation metrics, dataset loading, and end-to-end ChromaDB benchmark.
+- `.env.example` — Documented `RETRIEVAL_TOP_K`, `RETRIEVAL_MAX_TOP_K`, and `RETRIEVAL_DISTANCE_THRESHOLD`.
+- `docs/architecture.md` — Updated pipeline diagram, status table, and Phase 4 architecture notes.
+- `docs/PROJECT_PROGRESS.md` — Documented Phase 4 progress (this file).
+- `README.md` — Updated with semantic retrieval concepts, ranking, thresholding, evaluation metrics, and test instructions.
+
+### 3. Tests Executed and Results
+- **Command**: `.\.venv\Scripts\python.exe -m pytest -v`
+- **Result**: **109 passed in 20.52s** (100% pass rate)
+  - `tests/test_chunking.py`: 25 PASSED
+  - `tests/test_config.py`: 15 PASSED
+  - `tests/test_document_loader.py`: 15 PASSED
+  - `tests/test_embeddings.py`: 11 PASSED
+  - `tests/test_evaluation.py`: 16 PASSED
+  - `tests/test_indexing.py`: 5 PASSED
+  - `tests/test_retrieval.py`: 15 PASSED
+  - `tests/test_vector_store.py`: 6 PASSED
+
+### 4. Known Issues and Limitations
+- **Threshold Calibration**: The optimal `RETRIEVAL_DISTANCE_THRESHOLD` varies depending on embedding model density and domain vocabulary. The default is left unconstrained (`None`) so all top-k items are returned unless explicitly configured.
+- **RAG Generation**: Question answering and citation synthesis with Gemini 2.5 Flash will be implemented in Phase 5.
+
+### 5. Next Phase
+- **Phase 5**: Grounded Generation and Citations (Gemini 2.5 Flash integration, strict citation generation, hallucination guardrails).
+

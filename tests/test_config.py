@@ -7,6 +7,8 @@ from src.config import (
     DEFAULT_CHUNK_OVERLAP,
     DEFAULT_CHUNK_SIZE,
     DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_RETRIEVAL_MAX_TOP_K,
+    DEFAULT_RETRIEVAL_TOP_K,
     PLACEHOLDER_API_KEY,
     AppConfig,
     load_config,
@@ -181,3 +183,72 @@ class TestAppConfig:
             chroma_persist_dir=Path("data/chromadb"),
         )
         assert "gemini_api_key='[NOT SET]'" in repr(unset_config)
+
+
+class TestRetrievalConfig:
+    """Tests for retrieval configuration options and validation."""
+
+    def test_default_retrieval_values(self, monkeypatch, tmp_path):
+        """Should load default retrieval settings when env vars are absent."""
+        monkeypatch.delenv("RETRIEVAL_TOP_K", raising=False)
+        monkeypatch.delenv("RETRIEVAL_MAX_TOP_K", raising=False)
+        monkeypatch.delenv("RETRIEVAL_DISTANCE_THRESHOLD", raising=False)
+
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        cfg = load_config(env_path=empty_env)
+        assert cfg.retrieval_top_k == DEFAULT_RETRIEVAL_TOP_K
+        assert cfg.retrieval_max_top_k == DEFAULT_RETRIEVAL_MAX_TOP_K
+        assert cfg.retrieval_distance_threshold is None
+
+    def test_custom_retrieval_values(self, monkeypatch, tmp_path):
+        """Should correctly parse custom retrieval settings."""
+        monkeypatch.setenv("RETRIEVAL_TOP_K", "10")
+        monkeypatch.setenv("RETRIEVAL_MAX_TOP_K", "30")
+        monkeypatch.setenv("RETRIEVAL_DISTANCE_THRESHOLD", "0.45")
+
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        cfg = load_config(env_path=empty_env)
+        assert cfg.retrieval_top_k == 10
+        assert cfg.retrieval_max_top_k == 30
+        assert cfg.retrieval_distance_threshold == 0.45
+
+    def test_invalid_retrieval_top_k(self, monkeypatch, tmp_path):
+        """Should raise ValueError on invalid RETRIEVAL_TOP_K."""
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        monkeypatch.setenv("RETRIEVAL_TOP_K", "not_a_number")
+        with pytest.raises(ValueError, match="RETRIEVAL_TOP_K must be a valid integer"):
+            load_config(env_path=empty_env)
+
+        monkeypatch.setenv("RETRIEVAL_TOP_K", "-5")
+        with pytest.raises(ValueError, match="RETRIEVAL_TOP_K must be a positive integer"):
+            load_config(env_path=empty_env)
+
+    def test_top_k_exceeding_max_top_k(self, monkeypatch, tmp_path):
+        """Should raise ValueError when RETRIEVAL_TOP_K > RETRIEVAL_MAX_TOP_K."""
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        monkeypatch.setenv("RETRIEVAL_TOP_K", "60")
+        monkeypatch.setenv("RETRIEVAL_MAX_TOP_K", "50")
+        with pytest.raises(ValueError, match="cannot exceed RETRIEVAL_MAX_TOP_K"):
+            load_config(env_path=empty_env)
+
+    def test_invalid_distance_threshold(self, monkeypatch, tmp_path):
+        """Should raise ValueError when RETRIEVAL_DISTANCE_THRESHOLD is out of range."""
+        empty_env = tmp_path / "empty.env"
+        empty_env.touch()
+
+        monkeypatch.setenv("RETRIEVAL_DISTANCE_THRESHOLD", "2.5")
+        with pytest.raises(ValueError, match="RETRIEVAL_DISTANCE_THRESHOLD must be between 0.0 and 2.0"):
+            load_config(env_path=empty_env)
+
+        monkeypatch.setenv("RETRIEVAL_DISTANCE_THRESHOLD", "-0.1")
+        with pytest.raises(ValueError, match="RETRIEVAL_DISTANCE_THRESHOLD must be between 0.0 and 2.0"):
+            load_config(env_path=empty_env)
+

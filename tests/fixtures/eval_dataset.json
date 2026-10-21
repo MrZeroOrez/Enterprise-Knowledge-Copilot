@@ -1,0 +1,98 @@
+[
+  {
+    "id": "eval_01",
+    "query": "What are the standard office hours and weekly working hours?",
+    "expected_chunk_ids": ["handbook_p1_c0"],
+    "relevant_source": "employee_handbook.pdf",
+    "query_type": "exact_match",
+    "description": "Standard business hours question matching page 1 of employee handbook."
+  },
+  {
+    "id": "eval_02",
+    "query": "How much paid vacation and sick time do full-time staff get each year?",
+    "expected_chunk_ids": ["handbook_p3_c0"],
+    "relevant_source": "employee_handbook.pdf",
+    "query_type": "paraphrase",
+    "description": "Paraphrase of annual and sick leave entitlements on page 3."
+  },
+  {
+    "id": "eval_03",
+    "query": "Can I work from home and how many days are allowed per week?",
+    "expected_chunk_ids": ["handbook_p2_c0"],
+    "relevant_source": "employee_handbook.pdf",
+    "query_type": "paraphrase",
+    "description": "Paraphrase regarding remote work limits and approval on page 2."
+  },
+  {
+    "id": "eval_04",
+    "query": "What are the password complexity requirements and rotation intervals?",
+    "expected_chunk_ids": ["it_p1_c0"],
+    "relevant_source": "it_security_policy.pdf",
+    "query_type": "exact_match",
+    "description": "Exact match for IT password policy on page 1."
+  },
+  {
+    "id": "eval_05",
+    "query": "What is the procedure and timeline for returning company equipment upon leaving?",
+    "expected_chunk_ids": ["it_p2_c0"],
+    "relevant_source": "it_security_policy.pdf",
+    "query_type": "paraphrase",
+    "description": "Paraphrase of laptop and hardware return timeline on page 2."
+  },
+  {
+    "id": "eval_06",
+    "query": "What are the daily meal allowances for domestic and overseas business travel?",
+    "expected_chunk_ids": ["travel_p1_c0"],
+    "relevant_source": "travel_reimbursement.pdf",
+    "query_type": "paraphrase",
+    "description": "Per diem rate inquiry for domestic and international travel."
+  },
+  {
+    "id": "eval_07",
+    "query": "When is business class air travel permitted for company employees?",
+    "expected_chunk_ids": ["travel_p2_c0"],
+    "relevant_source": "travel_reimbursement.pdf",
+    "query_type": "exact_match",
+    "description": "Flight booking policy conditions for business class upgrade."
+  },
+  {
+    "id": "eval_08",
+    "query": "What are the company policies regarding workplace schedule flexibility and telecommuting options?",
+    "expected_chunk_ids": ["handbook_p1_c0", "handbook_p2_c0"],
+    "relevant_source": "employee_handbook.pdf",
+    "query_type": "cross_page",
+    "description": "Spans core office hours (page 1) and telecommuting rules (page 2)."
+  },
+  {
+    "id": "eval_09",
+    "query": "What are the rules regarding IT equipment and expense reimbursement when traveling?",
+    "expected_chunk_ids": ["it_p2_c0", "travel_p1_c0"],
+    "relevant_source": null,
+    "query_type": "multi_doc",
+    "description": "Spans both IT security equipment guidelines and travel expense rules."
+  },
+  {
+    "id": "eval_10",
+    "query": "Can employees expense alcoholic beverages during domestic business trips?",
+    "expected_chunk_ids": ["travel_p1_c0"],
+    "relevant_source": "travel_reimbursement.pdf",
+    "query_type": "exact_match",
+    "description": "Specific clause prohibiting alcohol expense reimbursement."
+  },
+  {
+    "id": "eval_11",
+    "query": "What is the company policy regarding cryptocurrency compensation and stock option vesting?",
+    "expected_chunk_ids": [],
+    "relevant_source": null,
+    "query_type": "unanswerable",
+    "description": "Out-of-domain query not covered in any company policy document."
+  },
+  {
+    "id": "eval_12",
+    "query": "What pet animals are permitted inside corporate headquarters facilities?",
+    "expected_chunk_ids": [],
+    "relevant_source": null,
+    "query_type": "unanswerable",
+    "description": "Irrelevant query with no matching policy in the knowledge base."
+  }
+]

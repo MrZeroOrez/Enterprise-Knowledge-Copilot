@@ -9,10 +9,10 @@ Designed for resource-constrained laptops:
 
 ---
 
-## Current Status: Phase 3 (Gemini Embeddings & ChromaDB Vector Indexing)
+## Current Status: Phase 4 (Semantic Retrieval, Ranking, and Relevance Testing)
 
 > [!NOTE]  
-> We have completed **Phase 3**. The project now generates dense vector embeddings via Google's official `google-genai` SDK (`text-embedding-004`), stores vectors and citation metadata persistently in local ChromaDB (`data/chromadb/`), detects content changes to prevent duplicate indexing, and performs semantic similarity search across stored chunks. All 79 automated unit tests pass offline with zero network calls.
+> We have completed **Phase 4**. The project now features robust semantic retrieval with configurable top-k ranking, distance thresholding (cosine distance filtering), document-specific source filtering, duplicate chunk suppression, and context formatting for LLM prompts. It also includes an automated evaluation module computing Recall@k, Precision@k, and Mean Reciprocal Rank (MRR) against a 12-query synthetic benchmark. All 109 automated unit tests pass offline with zero network calls.
 
 ---
 
@@ -27,23 +27,27 @@ enterprise-knowledge-copilot/
 ├── README.md                   # Beginner setup guide (this file)
 ├── src/
 │   ├── __init__.py             # Package marker
-│   ├── config.py               # Safe environment & config loader
+│   ├── config.py               # Safe environment & config loader (retrieval settings)
 │   ├── document_loader.py      # PDF text & metadata extraction
 │   ├── chunking.py             # Deterministic chunking with page boundary preservation
-│   ├── embeddings.py           # Gemini embeddings via google-genai SDK (Phase 3)
-│   ├── vector_store.py         # Persistent local ChromaDB store (Phase 3)
-│   ├── indexing.py             # End-to-end PDF indexing pipeline (Phase 3)
-│   ├── retrieval.py            # Semantic retrieval & similarity search (Phase 3)
+│   ├── embeddings.py           # Gemini embeddings via google-genai SDK
+│   ├── vector_store.py         # Persistent local ChromaDB store
+│   ├── indexing.py             # End-to-end PDF indexing pipeline
+│   ├── retrieval.py            # Semantic retrieval, thresholding & context formatting (Phase 4)
+│   ├── evaluation.py           # Retrieval metrics: Recall@k, Precision@k, MRR (Phase 4)
 │   └── rag_pipeline.py         # Grounded RAG pipeline (Planned for Phase 5)
 ├── tests/
 │   ├── __init__.py
-│   ├── test_config.py          # Config validation & secret masking tests (11 tests)
+│   ├── fixtures/
+│   │   └── eval_dataset.json   # 12 synthetic evaluation queries (Phase 4)
+│   ├── test_config.py          # Config validation & secret masking tests (15 tests)
 │   ├── test_document_loader.py # PDF validation & extraction tests (15 tests)
 │   ├── test_chunking.py        # Chunking & overlap tests (25 tests)
 │   ├── test_embeddings.py      # Embedding generation & retry tests (11 tests)
 │   ├── test_vector_store.py    # ChromaDB operations & persistence tests (6 tests)
 │   ├── test_indexing.py        # Pipeline & deduplication tests (5 tests)
-│   └── test_retrieval.py       # Semantic search & ranking tests (6 tests)
+│   ├── test_retrieval.py       # Semantic search, thresholding & filter tests (15 tests)
+│   └── test_evaluation.py      # Metrics calculation & benchmark tests (16 tests)
 ├── data/
 │   └── uploads/                # Document storage (.gitkeep)
 └── docs/
@@ -119,7 +123,7 @@ Run all unit tests using `pytest`:
 pytest -v
 ```
 
-All 79 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
+All 109 unit tests run **100% offline** using mocked API responses. **Running tests makes zero API calls and consumes zero quota.**
 
 ---
 
@@ -128,11 +132,35 @@ All 79 unit tests run **100% offline** using mocked API responses. **Running tes
 ### What are Embeddings?
 An **embedding** is a way of translating human language (words, sentences, document chunks) into a dense list of numbers (a vector). For example, `text-embedding-004` turns a chunk of text into a list of 768 floating-point numbers. Sentences with similar meanings end up mathematically close to each other in this 768-dimensional space. This allows our Copilot to find relevant information based on **conceptual meaning**, not just exact keyword matches.
 
-### Why ChromaDB?
-**ChromaDB** is a lightweight, open-source vector database designed for AI applications. It stores our document chunks alongside their mathematical embeddings directly on disk in `data/chromadb/`. We chose ChromaDB because:
-- It requires **no Docker, no server daemon, and minimal RAM**.
-- It runs entirely within the local Python process.
-- We configure it with `embedding_function=None`, guaranteeing it uses our Gemini embeddings directly without silently downloading heavy local machine learning models.
+### Keyword Search vs. Semantic Retrieval
+- **Keyword Search (e.g. grep, BM25)**: Matches exact words or substrings. If a policy document says *"Employees receive 20 days of paid annual leave"* and the user asks *"How much vacation time do I get?"*, keyword search fails because the word *"vacation"* never appears in the text.
+- **Semantic Retrieval**: Encodes the underlying meaning into vector space. In `text-embedding-004`, *"vacation time"* and *"paid annual leave"* have nearly identical vector representations, enabling high-precision retrieval even with zero shared words.
+
+### Ranking and Cosine Distance
+ChromaDB calculates the distance between the query vector and document chunk vectors using **cosine distance**:
+$$\text{Cosine Distance} = 1.0 - \text{Cosine Similarity}$$
+- **Distance $\approx 0.0$**: Strong semantic similarity (exact concept match).
+- **Distance $\approx 1.0$**: Orthogonal / unrelated concepts.
+- **Distance $> 1.0$**: Opposing or diametrically distant concepts.
+
+Results are returned ranked in ascending order by distance (closest first).
+
+### Relevance Thresholding & Guardrails
+A vector database will always return the mathematical top-k nearest neighbors, even if the user asks a completely irrelevant question (e.g. *"How do rockets work?"* asked against an HR handbook). Without guardrails, irrelevant chunks pollute the LLM's context window.
+
+We address this with **Relevance Thresholding** (`RETRIEVAL_DISTANCE_THRESHOLD` or `max_distance`):
+- Any chunk whose distance exceeds the threshold is discarded before entering the LLM prompt.
+- If all chunks exceed the threshold, retrieval returns an empty list, allowing Phase 5 to cleanly report that no matching evidence was found.
+
+### Retrieval Evaluation Metrics
+To measure retrieval quality without manual inspection, Phase 4 implements an offline evaluation harness (`src/evaluation.py`):
+1. **Recall@k**: Fraction of ground-truth relevant chunks that appear in the top-k results:
+   $$\text{Recall@k} = \frac{|\text{Retrieved}_k \cap \text{Expected}|}{|\text{Expected}|}$$
+2. **Precision@k**: Fraction of top-k retrieved chunks that are actually relevant:
+   $$\text{Precision@k} = \frac{|\text{Retrieved}_k \cap \text{Expected}|}{|\text{Retrieved}_k|}$$
+3. **Mean Reciprocal Rank (MRR)**: Evaluates ranking quality by measuring how high the first relevant chunk appears:
+   $$\text{RR} = \frac{1}{\text{rank of first relevant chunk}}$$
+   $$\text{MRR} = \frac{1}{N} \sum_{i=1}^N \text{RR}_i$$
 
 ---
 
@@ -171,28 +199,37 @@ An **embedding** is a way of translating human language (words, sentences, docum
 - **Duplicate Detection**: Computes document-level content hashes; skips re-indexing unchanged documents (`skipped_unchanged`) to conserve API quota.
 - **All-or-Nothing Replacement**: Computes all embeddings before touching ChromaDB. If embedding fails halfway, the previous index remains untouched.
 
-### 7. Initial Retrieval Interface (`src/retrieval.py`)
-- **Semantic Search (`search_chunks`)**: Generates query embeddings with `RETRIEVAL_QUERY` and queries ChromaDB for top-k nearest chunks with cosine distance metrics.
+### 7. Semantic Retrieval & Relevance Calibration (`src/retrieval.py` — Phase 4)
+- **Top-k & Bounded Limits**: Configurable default (`RETRIEVAL_TOP_K=5`) with strict upper bound validation (`RETRIEVAL_MAX_TOP_K=50`).
+- **Distance Filtering**: Rejection of irrelevant chunks via `max_distance` (or `RETRIEVAL_DISTANCE_THRESHOLD`).
+- **Source Filtering**: Direct document-level filtering (`source_filter="handbook.pdf"`) supporting multi-document routing and cross-document segregation.
+- **Deduplication**: Automatically suppresses duplicate chunk IDs returned by vector queries.
+- **Context Window Formatting (`format_retrieval_context`)**: Formats retrieved passages with citation labels (`[Passage 1 | Source: ... | Page: ... | ID: ...]`) ready for LLM prompt augmentation.
+
+### 8. Retrieval Evaluation Harness (`src/evaluation.py` — Phase 4)
+- **Deterministic Metrics**: Computes Recall@k, Precision@k, Reciprocal Rank, and Mean Reciprocal Rank (MRR).
+- **Synthetic Benchmark**: Includes a 12-query evaluation fixture (`tests/fixtures/eval_dataset.json`) covering exact matches, paraphrasing, cross-page facts, multi-document routing, and unanswerable queries.
 
 ---
 
-## Manual Indexing Verification (Optional)
+## Manual Retrieval Verification (Optional)
 
-Once you set a real `GEMINI_API_KEY` in `.env`, you can test indexing and retrieval from PowerShell:
+Once you set a real `GEMINI_API_KEY` in `.env`, you can test semantic search and context formatting from PowerShell:
 
 ```powershell
 python -c "
-from src.indexing import index_document
-from src.retrieval import search_chunks
+from src.retrieval import search_chunks, format_retrieval_context
 
-# Index any PDF file in data/uploads/
-# result = index_document('data/uploads/sample.pdf')
-# print(result.to_dict())
+# Search indexed chunks with distance filtering
+hits = search_chunks('What are the company policies regarding remote work?', top_k=3, max_distance=0.6)
+print(f'Retrieved {len(hits)} relevant passages:')
+for h in hits:
+    print(f'- Page {h[\"page\"]} ({h[\"source\"]}, dist={h[\"distance\"]:.3f}): {h[\"text\"][:80]}...')
 
-# Search indexed chunks
-# hits = search_chunks('What are the company policies?', top_k=3)
-# for h in hits:
-#     print(f'Page {h[\"page\"]} ({h[\"source\"]}): {h[\"text\"][:100]}...')
+# Format context as it will appear in the Phase 5 LLM prompt
+context_block = format_retrieval_context(hits)
+print('\n--- Formatted Context for LLM ---')
+print(context_block)
 "
 ```
 
@@ -206,9 +243,9 @@ from src.retrieval import search_chunks
 
 ---
 
-## Next Up: Phase 4
+## Next Up: Phase 5
 
-In **Phase 4 (Semantic Retrieval and Relevance Checks)**, we will:
-- Implement similarity score calibration and relevance threshold filtering.
-- Prevent irrelevant document chunks from polluting prompt context.
-- Add retrieval diagnostics and structured context formatting for LLM grounding.
+In **Phase 5 (Grounded Generation and Citations)**, we will:
+- Integrate Gemini 2.5 Flash for question answering grounded strictly in retrieved context.
+- Enforce strict citation formatting (`[Source: filename.pdf, Page: N]`).
+- Implement honest fallback behavior when context is insufficient to prevent hallucination.

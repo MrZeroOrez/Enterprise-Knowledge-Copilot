@@ -1,7 +1,7 @@
 # Enterprise Knowledge Copilot — Architecture & System Design
 
 > **Document Status**: Active / Phased Architecture Plan  
-> **Current Version**: Phase 3 Verified (Gemini Embeddings & ChromaDB Vector Indexing)  
+> **Current Version**: Phase 4 Verified (Semantic Retrieval, Ranking, and Relevance Testing)  
 > **Last Updated**: October 2026  
 
 ---
@@ -100,8 +100,9 @@ To maintain transparency and engineering rigor, the table below highlights exact
 | **ChromaDB Vector Store** | **Implemented** | Phase 3 | Phase 3 |
 | **Document Indexing Pipeline** | **Implemented** | Phase 3 | Phase 3 |
 | **Initial Retrieval Interface** | **Implemented** | Phase 3 | Phase 3 |
-| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1, 2, 3 | Phase 1, 2, 3 |
-| **Semantic Retrieval & Relevance Checks** | Planned | — | Phase 4 |
+| **Semantic Retrieval & Relevance Checks** | **Implemented** | Phase 4 | Phase 4 |
+| **Retrieval Evaluation Metrics (Recall/MRR)** | **Implemented** | Phase 4 | Phase 4 |
+| **Unit Test Suite (`pytest`)** | **Implemented** | Phase 1, 2, 3, 4 | Phase 1, 2, 3, 4 |
 | **Grounded Gemini Q&A with Citations** | Planned | — | Phase 5 |
 | **Streamlit Interactive UI** | Planned | — | Phase 6 |
 | **Short-term Conversation History** | Planned | — | Phase 7 |
@@ -135,6 +136,17 @@ To maintain transparency and engineering rigor, the table below highlights exact
   $$\text{chunk\_id} = f"{filename}\_p\{page\}\_c\{chunk\_index\}\_\{hash\}$$
 - Preserves precise character offsets (`char_start`, `char_end`) for auditability.
 - Deduplication support (`deduplicate=True`) prevents redundant embedding of repeated boilerplate (e.g. repeated headers/footers across pages).
+
+### 4.4 Semantic Retrieval & Relevance Calibration (`src/retrieval.py` & `src/evaluation.py`)
+- **Query Vectorization**: Generates search query vectors with Gemini `task_type='RETRIEVAL_QUERY'`, ensuring alignment with stored document chunk representations (`task_type='RETRIEVAL_DOCUMENT'`).
+- **Bounded Top-k**: Guarantees bounded query size (`top_k <= RETRIEVAL_MAX_TOP_K`) to protect system memory and downstream LLM context windows.
+- **Distance Thresholding**: Employs cosine distance filtering (`distance <= max_distance`), suppressing irrelevant chunks before they reach downstream LLM prompts.
+- **Source Filtering**: Enables document routing (`source_filter="handbook.pdf"`) via ChromaDB metadata clauses.
+- **Context Formatting (`format_retrieval_context`)**: Formats retrieved passages into clean markdown blocks containing passage IDs, source filenames, and 1-indexed page citations.
+- **Evaluation Metrics**: Provides deterministic offline calculation of:
+  - $\text{Recall@k} = \frac{|\text{Retrieved}_k \cap \text{Expected}|}{|\text{Expected}|}$
+  - $\text{Precision@k} = \frac{|\text{Retrieved}_k \cap \text{Expected}|}{|\text{Retrieved}_k|}$
+  - $\text{MRR} = \frac{1}{N} \sum_{i=1}^N \frac{1}{\text{rank of first relevant chunk}}$
 
 ---
 

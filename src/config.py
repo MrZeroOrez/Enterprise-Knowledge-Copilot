@@ -21,6 +21,8 @@ DEFAULT_UPLOAD_DIR = "data/uploads"
 DEFAULT_CHROMA_DIR = "data/chromadb"
 DEFAULT_CHROMA_COLLECTION_NAME = "enterprise_documents"
 DEFAULT_MAX_UPLOAD_SIZE_MB = 10
+DEFAULT_RETRIEVAL_TOP_K = 5
+DEFAULT_RETRIEVAL_MAX_TOP_K = 50
 
 PLACEHOLDER_API_KEY = "your_gemini_api_key_here"
 
@@ -38,6 +40,9 @@ class AppConfig:
     chroma_persist_dir: Path
     chroma_collection_name: str = DEFAULT_CHROMA_COLLECTION_NAME
     max_upload_size_mb: int = DEFAULT_MAX_UPLOAD_SIZE_MB
+    retrieval_top_k: int = DEFAULT_RETRIEVAL_TOP_K
+    retrieval_max_top_k: int = DEFAULT_RETRIEVAL_MAX_TOP_K
+    retrieval_distance_threshold: float | None = None
 
     @property
     def max_upload_size_bytes(self) -> int:
@@ -107,6 +112,32 @@ class AppConfig:
                 f"MAX_UPLOAD_SIZE_MB must be a positive integer (> 0), got: {self.max_upload_size_mb}"
             )
 
+    def validate_retrieval_params(self) -> None:
+        """Validate retrieval parameters.
+
+        Raises:
+            ValueError: If top_k or thresholds violate invariants.
+        """
+        if self.retrieval_top_k <= 0:
+            raise ValueError(
+                f"RETRIEVAL_TOP_K must be a positive integer (> 0), got: {self.retrieval_top_k}"
+            )
+        if self.retrieval_max_top_k <= 0:
+            raise ValueError(
+                f"RETRIEVAL_MAX_TOP_K must be a positive integer (> 0), got: {self.retrieval_max_top_k}"
+            )
+        if self.retrieval_top_k > self.retrieval_max_top_k:
+            raise ValueError(
+                f"RETRIEVAL_TOP_K ({self.retrieval_top_k}) cannot exceed "
+                f"RETRIEVAL_MAX_TOP_K ({self.retrieval_max_top_k})."
+            )
+        if self.retrieval_distance_threshold is not None:
+            if not (0.0 <= self.retrieval_distance_threshold <= 2.0):
+                raise ValueError(
+                    f"RETRIEVAL_DISTANCE_THRESHOLD must be between 0.0 and 2.0, "
+                    f"got: {self.retrieval_distance_threshold}"
+                )
+
     def is_api_key_set(self) -> bool:
         """Check if an API key is set without exposing the key value."""
         return bool(
@@ -126,6 +157,7 @@ class AppConfig:
             f"chunk_size={self.chunk_size}, "
             f"chunk_overlap={self.chunk_overlap}, "
             f"max_upload_size_mb={self.max_upload_size_mb}, "
+            f"retrieval_top_k={self.retrieval_top_k}, "
             f"upload_dir='{self.upload_dir}', "
             f"chroma_persist_dir='{self.chroma_persist_dir}', "
             f"chroma_collection_name='{self.chroma_collection_name}')"
@@ -192,6 +224,26 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
             f"MAX_UPLOAD_SIZE_MB must be a valid integer, got: '{max_upload_size_raw}'"
         ) from exc
 
+    retrieval_top_k_raw = os.getenv("RETRIEVAL_TOP_K", str(DEFAULT_RETRIEVAL_TOP_K))
+    try:
+        retrieval_top_k = int(retrieval_top_k_raw)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"RETRIEVAL_TOP_K must be a valid integer, got: '{retrieval_top_k_raw}'") from exc
+
+    retrieval_max_top_k_raw = os.getenv("RETRIEVAL_MAX_TOP_K", str(DEFAULT_RETRIEVAL_MAX_TOP_K))
+    try:
+        retrieval_max_top_k = int(retrieval_max_top_k_raw)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"RETRIEVAL_MAX_TOP_K must be a valid integer, got: '{retrieval_max_top_k_raw}'") from exc
+
+    thresh_raw = os.getenv("RETRIEVAL_DISTANCE_THRESHOLD")
+    retrieval_distance_threshold: float | None = None
+    if thresh_raw is not None and thresh_raw.strip() != "":
+        try:
+            retrieval_distance_threshold = float(thresh_raw)
+        except (ValueError, TypeError) as exc:
+            raise ValueError(f"RETRIEVAL_DISTANCE_THRESHOLD must be a valid float, got: '{thresh_raw}'") from exc
+
     config = AppConfig(
         gemini_api_key=gemini_api_key,
         chat_model=chat_model,
@@ -202,11 +254,15 @@ def load_config(env_path: Path | str | None = None) -> AppConfig:
         chroma_persist_dir=chroma_dir,
         chroma_collection_name=chroma_collection_name,
         max_upload_size_mb=max_upload_size_mb,
+        retrieval_top_k=retrieval_top_k,
+        retrieval_max_top_k=retrieval_max_top_k,
+        retrieval_distance_threshold=retrieval_distance_threshold,
     )
 
     # Validate non-API parameters on load to fail-fast on malformed settings
     config.validate_chunking_params()
     config.validate_upload_params()
     config.validate_embedding_model()
+    config.validate_retrieval_params()
 
     return config
